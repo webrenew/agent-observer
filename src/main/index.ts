@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import path from 'path'
 import { setupTerminalHandlers, cleanupTerminals } from './terminal'
 import { setupSettingsHandlers, createApplicationMenu } from './settings'
+import { setupClaudeSessionHandlers, cleanupClaudeSessions } from './claude-session'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -25,6 +26,7 @@ function createWindow(): void {
   })
 
   setupTerminalHandlers(mainWindow)
+  setupClaudeSessionHandlers(mainWindow)
   setupSettingsHandlers()
   createApplicationMenu(mainWindow)
 
@@ -47,6 +49,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   cleanupTerminals()
+  cleanupClaudeSessions()
 })
 
 app.on('window-all-closed', () => {

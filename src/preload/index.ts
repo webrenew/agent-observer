@@ -59,5 +59,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('menu:openSettings', handler)
       return () => { ipcRenderer.removeListener('menu:openSettings', handler) }
     }
+  },
+  claude: {
+    start: (options: { prompt: string; model?: string; systemPrompt?: string; allowedTools?: string[]; workingDirectory?: string }) =>
+      ipcRenderer.invoke('claude:start', options) as Promise<{ sessionId: string }>,
+
+    stop: (sessionId: string) =>
+      ipcRenderer.invoke('claude:stop', sessionId) as Promise<void>,
+
+    onEvent: (callback: (event: {
+      sessionId: string
+      type: string
+      data: Record<string, unknown>
+    }) => void) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        claudeEvent: { sessionId: string; type: string; data: Record<string, unknown> }
+      ) => callback(claudeEvent)
+      ipcRenderer.on('claude:event', handler)
+      return () => { ipcRenderer.removeListener('claude:event', handler) }
+    }
   }
 })

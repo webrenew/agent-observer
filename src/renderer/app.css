@@ -6,6 +6,178 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #1a1a2e;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0e0e14;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9A9692;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #595653; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #74747C; }
+
+/* ─── Frosted Glass Panel ────────────────────────────────────────── */
+.ws-glass-panel {
+  background: rgba(14, 14, 13, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(89, 86, 83, 0.2);
+}
+
+/* ─── Workspace Panel Section ────────────────────────────────────── */
+.ws-panel-section {
+  position: relative;
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+  background: rgba(14, 14, 20, 0.5);
+  border: 1px solid rgba(89, 86, 83, 0.15);
+}
+.ws-panel-section.ws-dragging {
+  opacity: 0.4;
+  box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.1);
+}
+
+/* ─── Panel Header ───────────────────────────────────────────────── */
+.ws-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: #595653;
+  text-transform: uppercase;
+  user-select: none;
+  border-bottom: 1px solid rgba(89, 86, 83, 0.15);
+  cursor: grab;
+}
+.ws-panel-header:active { cursor: grabbing; }
+
+/* ─── Drag Handle ────────────────────────────────────────────────── */
+.ws-drag-handle {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 10;
+  cursor: grab;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+  color: #595653;
+  font-size: 14px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+.ws-panel-section:hover .ws-drag-handle { opacity: 1; }
+.ws-drag-handle:hover { background: rgba(89, 86, 83, 0.2); }
+.ws-drag-handle:active { cursor: grabbing; }
+
+/* ─── Row Divider (vertical resize) ──────────────────────────────── */
+.ws-panel-divider {
+  height: 6px;
+  cursor: row-resize;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 5;
+}
+.ws-panel-divider-line {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(89, 86, 83, 0.15);
+  border-radius: 1px;
+  transition: background 0.2s ease, height 0.15s ease, top 0.15s ease;
+}
+.ws-panel-divider:hover .ws-panel-divider-line {
+  background: rgba(74, 222, 128, 0.4);
+  height: 3px;
+  top: 1.5px;
+}
+
+/* ─── Column Divider (horizontal resize) ─────────────────────────── */
+.ws-col-divider {
+  width: 6px;
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 5;
+}
+.ws-col-divider-line {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(89, 86, 83, 0.15);
+  border-radius: 1px;
+  transition: background 0.2s ease, width 0.15s ease, left 0.15s ease;
+}
+.ws-col-divider:hover .ws-col-divider-line {
+  background: rgba(74, 222, 128, 0.4);
+  width: 3px;
+  left: 1.5px;
+}
+
+/* ─── Drop Indicators ────────────────────────────────────────────── */
+.ws-drop-indicator-h {
+  height: 2px;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+  margin: 0;
+  transition: opacity 0.15s ease;
+}
+.ws-drop-indicator-v {
+  width: 2px;
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+  margin: 0;
+  align-self: stretch;
+  transition: opacity 0.15s ease;
+}
+
+/* ─── Hover Row (for list panels) ────────────────────────────────── */
+.ws-hover-row {
+  transition: background 0.2s ease;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: 0 -6px;
+}
+.ws-hover-row:hover { background: rgba(154, 150, 146, 0.06); }
+
+/* ─── Sparkline ──────────────────────────────────────────────────── */
+.ws-sparkline {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 14px;
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.ws-hover-row:hover .ws-sparkline { opacity: 1; }
+
+/* ─── Glow Effects ───────────────────────────────────────────────── */
+.ws-glow-green { text-shadow: 0 0 8px rgba(74, 222, 128, 0.4); }
+.ws-glow-amber { text-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+.ws-glow-blue  { text-shadow: 0 0 8px rgba(96, 165, 250, 0.4); }
+
+/* ─── Pulse Dot ──────────────────────────────────────────────────── */
+@keyframes ws-pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+  50% { box-shadow: 0 0 6px 3px rgba(74, 222, 128, 0.3); }
+}
+.ws-pulse-dot { animation: ws-pulse-green 2s ease-in-out infinite; }
+
+/* ─── Badge ──────────────────────────────────────────────────────── */
+.ws-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
 }

@@ -7,7 +7,7 @@ export type AgentStatus =
   | 'error'
   | 'done'
 
-export type AgentType = 'cursor' | 'cli' | 'mcp' | 'copilot'
+export type AgentType = 'cursor' | 'cli' | 'chat' | 'mcp' | 'copilot'
 
 export type CelebrationType = 'confetti' | 'rocket' | 'sparkles' | 'explosion' | 'trophy'
 
@@ -95,35 +95,86 @@ export const SUBSCRIPTION_OPTIONS: Record<SubscriptionType, { label: string; mon
   max_20x: { label: 'Claude Max 20x ($200/mo)', monthlyCost: 200 },
 }
 
-export type HairStyle = 'short' | 'long' | 'ponytail' | 'buzz' | 'mohawk'
+// ── Claude Chat Session Types ──────────────────────────────────────────
 
-export type CursorStyle = 'block' | 'underline' | 'bar'
+export interface ClaudeSystemInit {
+  session_id: string
+}
 
-export interface AppSettings {
-  general: {
-    startingDirectory: 'home' | 'custom'
-    customDirectory: string
-    shell: 'default' | 'custom'
-    customShell: string
-  }
-  appearance: {
-    fontFamily: string
-    fontSize: number
-    cursorStyle: CursorStyle
-    cursorBlink: boolean
-    terminalTheme: TerminalThemeName
-  }
-  terminal: {
-    scrollbackLines: number
-    copyOnSelect: boolean
-    optionAsMeta: boolean
-    visualBell: boolean
-    audibleBell: boolean
-  }
-  subscription: SubscriptionConfig
-  scopes: Scope[]
-  defaultScope: Scope
-  soundsEnabled: boolean
+export interface ClaudeTextContent {
+  text: string
+}
+
+export interface ClaudeToolUse {
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface ClaudeToolResult {
+  tool_use_id: string
+  content: string
+  is_error?: boolean
+}
+
+export interface ClaudeThinkingContent {
+  thinking: string
+}
+
+export interface ClaudeSessionResult {
+  result: string
+  usage?: Record<string, unknown>
+  is_error?: boolean
+  error?: string
+  session_id?: string
+}
+
+export interface ClaudeErrorInfo {
+  message: string
+  code?: string
+}
+
+export type ClaudeEventType =
+  | 'init'
+  | 'text'
+  | 'tool_use'
+  | 'tool_result'
+  | 'thinking'
+  | 'result'
+  | 'error'
+
+export interface ClaudeEvent {
+  sessionId: string
+  type: ClaudeEventType
+  data:
+    | ClaudeSystemInit
+    | ClaudeTextContent
+    | ClaudeToolUse
+    | ClaudeToolResult
+    | ClaudeThinkingContent
+    | ClaudeSessionResult
+    | ClaudeErrorInfo
+}
+
+/** A single message in the chat UI timeline */
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant' | 'tool' | 'thinking' | 'error'
+  content: string
+  timestamp: number
+  toolName?: string
+  toolInput?: Record<string, unknown>
+  toolUseId?: string
+  isError?: boolean
+  isCollapsed?: boolean
+}
+
+export interface ClaudeSessionOptions {
+  prompt: string
+  model?: string
+  systemPrompt?: string
+  allowedTools?: string[]
+  workingDirectory?: string
 }
 
 export const DEFAULT_SCOPE: Scope = {
@@ -218,6 +269,7 @@ export function randomAppearance(): AgentAppearance {
 export const AGENT_COLORS: Record<AgentType, string> = {
   cursor: '#4fa3f7',
   cli: '#4ade80',
+  chat: '#22d3ee',
   mcp: '#a78bfa',
   copilot: '#fb923c'
 }
@@ -254,6 +306,11 @@ declare global {
         set: (settings: AppSettings) => Promise<void>
         selectDirectory: () => Promise<string | null>
         onOpenSettings: (callback: () => void) => () => void
+      }
+      claude: {
+        start: (options: ClaudeSessionOptions) => Promise<{ sessionId: string }>
+        stop: (sessionId: string) => Promise<void>
+        onEvent: (callback: (event: ClaudeEvent) => void) => () => void
       }
     }
   }

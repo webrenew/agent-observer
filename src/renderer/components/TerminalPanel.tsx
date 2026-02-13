@@ -4,6 +4,7 @@ import { useSettingsStore } from '../store/settings'
 import { TerminalTab } from './TerminalTab'
 import { EventLog } from './EventLog'
 import { ObservabilityPanel } from './ObservabilityPanel'
+import { ChatPanel } from './chat/ChatPanel'
 import { matchScope } from '../lib/scopeMatcher'
 import { preloadSounds } from '../lib/soundPlayer'
 
@@ -11,7 +12,7 @@ const MIN_HEIGHT = 120
 const DEFAULT_HEIGHT = 300
 const MAX_HEIGHT_RATIO = 0.7
 
-type PanelView = 'terminal' | 'events' | 'observability'
+type PanelView = 'terminal' | 'events' | 'observability' | 'chat'
 
 let terminalCounter = 0
 
@@ -174,6 +175,19 @@ export function TerminalPanel() {
 
       {/* Tab bar */}
       <div className="flex items-center h-8 bg-[#12122a] border-b border-[#2a2a4a] px-1 gap-0.5 shrink-0">
+        {/* Chat tab */}
+        <button
+          onClick={() => setActiveView('chat')}
+          className={`flex items-center gap-1.5 px-3 h-7 rounded-t text-xs font-medium transition-colors ${
+            activeView === 'chat'
+              ? 'bg-[#16162a] text-white'
+              : 'text-gray-400 hover:text-gray-200 hover:bg-[#1a1a3a]'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full shrink-0 bg-cyan-400" />
+          <span>Chat</span>
+        </button>
+
         {/* Events tab */}
         <button
           onClick={() => setActiveView('events')}
@@ -294,7 +308,9 @@ export function TerminalPanel() {
 
       {/* Content area */}
       <div className="flex-1 relative overflow-hidden">
-        {activeView === 'events' ? (
+        {activeView === 'chat' ? (
+          <ChatPanel />
+        ) : activeView === 'events' ? (
           <EventLog />
         ) : activeView === 'observability' ? (
           <ObservabilityPanel />
