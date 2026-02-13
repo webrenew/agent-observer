@@ -1,157 +1,117 @@
 @import "tailwindcss";
 
+/* ─── Base ─────────────────────────────────────────────────────────── */
 html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0e0e14;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', 'Consolas', monospace;
+  background: #0E0E0D;
+  color: #9A9692;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.5;
-  color: #9A9692;
 }
 
-/* ─── Scrollbar ──────────────────────────────────────────────────── */
+/* ─── Scrollbar ────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #595653; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #74747C; }
 
-/* ─── Frosted Glass Panel ────────────────────────────────────────── */
-.ws-glass-panel {
+/* ─── Frosted glass panel ──────────────────────────────────────────── */
+.glass-panel {
   background: rgba(14, 14, 13, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(89, 86, 83, 0.2);
 }
 
-/* ─── Workspace Panel Section ────────────────────────────────────── */
-.ws-panel-section {
-  position: relative;
-  transition: box-shadow 0.2s ease, opacity 0.2s ease;
-  background: rgba(14, 14, 20, 0.5);
-  border: 1px solid rgba(89, 86, 83, 0.15);
+/* ─── Pulsing green dot ────────────────────────────────────────────── */
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(84, 140, 90, 0.7); }
+  50% { box-shadow: 0 0 6px 3px rgba(84, 140, 90, 0.3); }
 }
-.ws-panel-section.ws-dragging {
-  opacity: 0.4;
-  box-shadow: inset 0 0 20px rgba(74, 222, 128, 0.1);
-}
+.pulse-dot { animation: pulse-green 2s ease-in-out infinite; }
 
-/* ─── Panel Header ───────────────────────────────────────────────── */
-.ws-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: #595653;
-  text-transform: uppercase;
-  user-select: none;
-  border-bottom: 1px solid rgba(89, 86, 83, 0.15);
-  cursor: grab;
+/* ─── Amber dot pulse ──────────────────────────────────────────────── */
+@keyframes pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 160, 64, 0.6); }
+  50% { box-shadow: 0 0 6px 3px rgba(212, 160, 64, 0.2); }
 }
-.ws-panel-header:active { cursor: grabbing; }
+.pulse-amber { animation: pulse-amber 2s ease-in-out infinite; }
 
-/* ─── Drag Handle ────────────────────────────────────────────────── */
-.ws-drag-handle {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  z-index: 10;
-  cursor: grab;
-  padding: 2px 4px;
-  border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.2s ease, background 0.2s ease;
-  color: #595653;
-  font-size: 14px;
-  letter-spacing: 2px;
-  line-height: 1;
+/* ─── Chat message slide in ────────────────────────────────────────── */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
-.ws-panel-section:hover .ws-drag-handle { opacity: 1; }
-.ws-drag-handle:hover { background: rgba(89, 86, 83, 0.2); }
-.ws-drag-handle:active { cursor: grabbing; }
+.chat-msg { animation: slide-in 0.4s ease-out both; }
 
-/* ─── Row Divider (vertical resize) ──────────────────────────────── */
-.ws-panel-divider {
-  height: 6px;
-  cursor: row-resize;
-  position: relative;
-  flex-shrink: 0;
-  z-index: 5;
+/* ─── Typing indicator ─────────────────────────────────────────────── */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-4px); opacity: 1; }
 }
-.ws-panel-divider-line {
-  position: absolute;
-  top: 2px;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: rgba(89, 86, 83, 0.15);
-  border-radius: 1px;
-  transition: background 0.2s ease, height 0.15s ease, top 0.15s ease;
-}
-.ws-panel-divider:hover .ws-panel-divider-line {
-  background: rgba(74, 222, 128, 0.4);
-  height: 3px;
-  top: 1.5px;
-}
+.typing-dot { animation: typing-bounce 1.4s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ─── Column Divider (horizontal resize) ─────────────────────────── */
-.ws-col-divider {
-  width: 6px;
-  cursor: col-resize;
-  position: relative;
-  flex-shrink: 0;
-  z-index: 5;
-}
-.ws-col-divider-line {
-  position: absolute;
-  left: 2px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: rgba(89, 86, 83, 0.15);
-  border-radius: 1px;
-  transition: background 0.2s ease, width 0.15s ease, left 0.15s ease;
-}
-.ws-col-divider:hover .ws-col-divider-line {
-  background: rgba(74, 222, 128, 0.4);
-  width: 3px;
-  left: 1.5px;
-}
+/* ─── Glow effects ─────────────────────────────────────────────────── */
+.glow-amber { text-shadow: 0 0 8px rgba(212, 160, 64, 0.4); }
+.glow-green { text-shadow: 0 0 8px rgba(84, 140, 90, 0.4); }
 
-/* ─── Drop Indicators ────────────────────────────────────────────── */
-.ws-drop-indicator-h {
-  height: 2px;
-  background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
-  margin: 0;
-  transition: opacity 0.15s ease;
-}
-.ws-drop-indicator-v {
-  width: 2px;
-  background: #4ade80;
-  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
-  margin: 0;
-  align-self: stretch;
-  transition: opacity 0.15s ease;
-}
-
-/* ─── Hover Row (for list panels) ────────────────────────────────── */
-.ws-hover-row {
-  transition: background 0.2s ease;
+/* ─── Hover row highlight ──────────────────────────────────────────── */
+.hover-row {
+  transition: background 0.2s ease, transform 0.15s ease;
   border-radius: 4px;
   padding: 4px 6px;
   margin: 0 -6px;
 }
-.ws-hover-row:hover { background: rgba(154, 150, 146, 0.06); }
+.hover-row:hover { background: rgba(154, 150, 146, 0.06); }
 
-/* ─── Sparkline ──────────────────────────────────────────────────── */
-.ws-sparkline {
+/* ─── Nav hover ────────────────────────────────────────────────────── */
+.nav-item {
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+  cursor: pointer;
+}
+.nav-item:hover {
+  color: #9A9692 !important;
+  text-shadow: 0 0 12px rgba(154, 150, 146, 0.3);
+}
+
+/* ─── Section header (collapsible) ─────────────────────────────────── */
+.section-header {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-header:hover { color: #9A9692; }
+.section-chevron {
+  transition: transform 0.25s ease;
+  font-size: 9px;
+  display: inline-block;
+}
+.section-chevron.collapsed { transform: rotate(-90deg); }
+
+/* ─── Section content collapse ─────────────────────────────────────── */
+.section-content {
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+  max-height: 800px;
+  opacity: 1;
+}
+.section-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* ─── Sparkline ────────────────────────────────────────────────────── */
+.sparkline-container {
   display: inline-flex;
   align-items: flex-end;
   gap: 1px;
@@ -159,25 +119,154 @@ html, body, #root {
   opacity: 0.5;
   transition: opacity 0.2s ease;
 }
-.ws-hover-row:hover .ws-sparkline { opacity: 1; }
+.hover-row:hover .sparkline-container { opacity: 1; }
 
-/* ─── Glow Effects ───────────────────────────────────────────────── */
-.ws-glow-green { text-shadow: 0 0 8px rgba(74, 222, 128, 0.4); }
-.ws-glow-amber { text-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
-.ws-glow-blue  { text-shadow: 0 0 8px rgba(96, 165, 250, 0.4); }
-
-/* ─── Pulse Dot ──────────────────────────────────────────────────── */
-@keyframes ws-pulse-green {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
-  50% { box-shadow: 0 0 6px 3px rgba(74, 222, 128, 0.3); }
+/* ─── Tooltip ──────────────────────────────────────────────────────── */
+.tooltip-wrapper { position: relative; }
+.tooltip-wrapper .tooltip-text {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a19;
+  color: #9A9692;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  border: 1px solid rgba(89, 86, 83, 0.3);
+  z-index: 50;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
 }
-.ws-pulse-dot { animation: ws-pulse-green 2s ease-in-out infinite; }
+.tooltip-wrapper:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}
 
-/* ─── Badge ──────────────────────────────────────────────────────── */
-.ws-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
+/* ─── Task card hover ──────────────────────────────────────────────── */
+.task-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.task-card:hover {
+  border-color: rgba(84, 140, 90, 0.3);
+  box-shadow: 0 0 12px rgba(84, 140, 90, 0.1);
+}
+
+/* ─── Progress bar ─────────────────────────────────────────────────── */
+@keyframes progress-fill {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+.progress-bar {
+  height: 2px;
+  background: rgba(84, 140, 90, 0.15);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: #548C5A;
+  border-radius: 1px;
+  animation: progress-fill 1.5s ease-out both;
+}
+
+/* ─── Right panel drag-to-reorder ──────────────────────────────────── */
+.right-panel-section {
+  position: relative;
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.right-panel-section.dragging {
+  opacity: 0.4;
+  box-shadow: inset 0 0 20px rgba(84, 140, 90, 0.1);
+}
+
+/* ─── Drag handle ──────────────────────────────────────────────────── */
+.drag-handle {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 10;
+  cursor: grab;
+  padding: 2px 4px;
   border-radius: 3px;
-  letter-spacing: 0.5px;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.right-panel-section:hover .drag-handle { opacity: 1; }
+.drag-handle:hover { background: rgba(89, 86, 83, 0.2); }
+.drag-handle:active { cursor: grabbing; }
+.drag-handle-dots {
+  color: #595653;
+  font-size: 14px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+/* ─── Drop indicators ──────────────────────────────────────────────── */
+.drop-indicator-h {
+  height: 2px;
+  background: #548C5A;
+  box-shadow: 0 0 8px rgba(84, 140, 90, 0.5);
+  margin: 0;
+  transition: opacity 0.15s ease;
+}
+.drop-indicator-v {
+  width: 2px;
+  background: #548C5A;
+  box-shadow: 0 0 8px rgba(84, 140, 90, 0.5);
+  margin: 0;
+  align-self: stretch;
+  transition: opacity 0.15s ease;
+}
+
+/* ─── Panel resize divider (row) ───────────────────────────────────── */
+.panel-divider {
+  height: 8px;
+  cursor: row-resize;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 5;
+}
+.panel-divider-line {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(89, 86, 83, 0.15);
+  border-radius: 1px;
+  transition: background 0.2s ease, height 0.15s ease, top 0.15s ease;
+}
+.panel-divider:hover .panel-divider-line {
+  background: rgba(84, 140, 90, 0.4);
+  height: 3px;
+  top: 2.5px;
+}
+
+/* ─── Column resize divider ────────────────────────────────────────── */
+.col-divider {
+  width: 8px;
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 5;
+}
+.col-divider-line {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(89, 86, 83, 0.15);
+  border-radius: 1px;
+  transition: background 0.2s ease, width 0.15s ease, left 0.15s ease;
+}
+.col-divider:hover .col-divider-line {
+  background: rgba(84, 140, 90, 0.4);
+  width: 3px;
+  left: 2.5px;
 }

@@ -1,152 +1,114 @@
 import { useRef, useEffect, useCallback } from 'react'
+import { CollapsibleSection } from '../CollapsibleSection'
 
-interface Node {
+interface GraphNode {
   x: number
   y: number
   vx: number
   vy: number
-  radius: number
+  r: number
   color: string
-  alpha: number
+  baseAlpha: number
 }
 
-interface Edge {
-  from: number
-  to: number
-  alpha: number
-}
-
-const NODE_COLORS = ['#4ade80', '#22d3ee', '#a78bfa', '#fb923c', '#f87171', '#60a5fa']
-const NODE_COUNT = 18
-const EDGE_COUNT = 24
-
-function randomFloat(min: number, max: number): number {
-  return min + Math.random() * (max - min)
-}
-
-function createNodes(w: number, h: number): Node[] {
-  return Array.from({ length: NODE_COUNT }, () => ({
-    x: randomFloat(30, w - 30),
-    y: randomFloat(30, h - 30),
-    vx: randomFloat(-0.3, 0.3),
-    vy: randomFloat(-0.3, 0.3),
-    radius: randomFloat(2, 5),
-    color: NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)],
-    alpha: randomFloat(0.3, 0.8),
-  }))
-}
-
-function createEdges(): Edge[] {
-  const edges: Edge[] = []
-  for (let i = 0; i < EDGE_COUNT; i++) {
-    const from = Math.floor(Math.random() * NODE_COUNT)
-    let to = Math.floor(Math.random() * NODE_COUNT)
-    while (to === from) to = Math.floor(Math.random() * NODE_COUNT)
-    edges.push({ from, to, alpha: randomFloat(0.05, 0.15) })
-  }
-  return edges
-}
+const NODE_COLORS = ['#d4a040', '#c87830', '#548C5A', '#3a6a3a', '#e8c060', '#b86820']
+const NODE_COUNT = 120
 
 export function MemoryGraphPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const nodesRef = useRef<Node[]>([])
-  const edgesRef = useRef<Edge[]>([])
+  const nodesRef = useRef<GraphNode[]>([])
   const animRef = useRef<number>(0)
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const w = canvas.width
-    const h = canvas.height
-    const nodes = nodesRef.current
-    const edges = edgesRef.current
-
-    // Update positions
-    for (const node of nodes) {
-      node.x += node.vx
-      node.y += node.vy
-
-      if (node.x < 10 || node.x > w - 10) node.vx *= -1
-      if (node.y < 10 || node.y > h - 10) node.vy *= -1
-
-      node.x = Math.max(10, Math.min(w - 10, node.x))
-      node.y = Math.max(10, Math.min(h - 10, node.y))
+  const initNodes = useCallback((w: number, h: number): GraphNode[] => {
+    const nodes: GraphNode[] = []
+    for (let i = 0; i < NODE_COUNT; i++) {
+      const cx = w * (0.2 + Math.random() * 0.6)
+      const cy = h * (0.15 + Math.random() * 0.7)
+      nodes.push({
+        x: cx + (Math.random() - 0.5) * 80,
+        y: cy + (Math.random() - 0.5) * 60,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15,
+        r: 1 + Math.random() * 2.5,
+        color: NODE_COLORS[Math.floor(Math.random() * NODE_COLORS.length)],
+        baseAlpha: 0.7 + Math.random() * 0.3,
+      })
     }
-
-    // Clear
-    ctx.clearRect(0, 0, w, h)
-
-    // Draw edges
-    for (const edge of edges) {
-      const a = nodes[edge.from]
-      const b = nodes[edge.to]
-      if (!a || !b) continue
-
-      ctx.beginPath()
-      ctx.moveTo(a.x, a.y)
-      ctx.lineTo(b.x, b.y)
-      ctx.strokeStyle = `rgba(89, 86, 83, ${edge.alpha})`
-      ctx.lineWidth = 1
-      ctx.stroke()
-    }
-
-    // Draw nodes
-    for (const node of nodes) {
-      // Glow
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, node.radius * 3, 0, Math.PI * 2)
-      const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, node.radius * 3)
-      gradient.addColorStop(0, node.color + '30')
-      gradient.addColorStop(1, 'transparent')
-      ctx.fillStyle = gradient
-      ctx.fill()
-
-      // Core
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2)
-      ctx.fillStyle = node.color
-      ctx.globalAlpha = node.alpha
-      ctx.fill()
-      ctx.globalAlpha = 1
-    }
-
-    animRef.current = requestAnimationFrame(draw)
+    return nodes
   }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect
-        canvas.width = width * window.devicePixelRatio
-        canvas.height = height * window.devicePixelRatio
-        canvas.style.width = `${width}px`
-        canvas.style.height = `${height}px`
-        const ctx = canvas.getContext('2d')
-        if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-        nodesRef.current = createNodes(width, height)
-        edgesRef.current = createEdges()
+    const w = canvas.width
+    const h = canvas.height
+    nodesRef.current = initNodes(w, h)
+
+    let time = 0
+    const animate = () => {
+      time += 0.016
+      ctx.clearRect(0, 0, w, h)
+      const nodes = nodesRef.current
+
+      // Update positions with sine/cos drift
+      for (const node of nodes) {
+        node.x += node.vx + Math.sin(time * 0.5 + node.y * 0.01) * 0.05
+        node.y += node.vy + Math.cos(time * 0.3 + node.x * 0.01) * 0.05
+        if (node.x < 10 || node.x > w - 10) node.vx *= -1
+        if (node.y < 10 || node.y > h - 10) node.vy *= -1
+        node.x = Math.max(5, Math.min(w - 5, node.x))
+        node.y = Math.max(5, Math.min(h - 5, node.y))
       }
-    })
 
-    resizeObserver.observe(canvas.parentElement ?? canvas)
-    animRef.current = requestAnimationFrame(draw)
+      // Draw distance-based edges
+      ctx.lineWidth = 0.3
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x
+          const dy = nodes[i].y - nodes[j].y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 45) {
+            const alpha = 0.15 - dist / 450
+            ctx.strokeStyle = `rgba(200, 160, 80, ${alpha})`
+            ctx.beginPath()
+            ctx.moveTo(nodes[i].x, nodes[i].y)
+            ctx.lineTo(nodes[j].x, nodes[j].y)
+            ctx.stroke()
+          }
+        }
+      }
 
-    return () => {
-      resizeObserver.disconnect()
-      cancelAnimationFrame(animRef.current)
+      // Draw nodes with breathing alpha
+      for (const node of nodes) {
+        const breathe = Math.sin(time * 1.2 + node.x * 0.05) * 0.15
+        ctx.fillStyle = node.color
+        ctx.globalAlpha = Math.max(0.3, Math.min(1, node.baseAlpha + breathe))
+        ctx.beginPath()
+        ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.globalAlpha = 1
+
+      animRef.current = requestAnimationFrame(animate)
     }
-  }, [draw])
+
+    animate()
+    return () => cancelAnimationFrame(animRef.current)
+  }, [initNodes])
 
   return (
-    <div className="w-full h-full relative">
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-    </div>
+    <CollapsibleSection title="MEMORY GRAPH">
+      <div style={{ padding: '0 16px 10px', height: 'calc(100% - 36px)' }}>
+        <canvas
+          ref={canvasRef}
+          width={300}
+          height={200}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </div>
+    </CollapsibleSection>
   )
 }

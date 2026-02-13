@@ -36,8 +36,8 @@ export function RowDivider({ onDrag }: Props) {
   )
 
   return (
-    <div onMouseDown={handleMouseDown} className="ws-panel-divider">
-      <div className="ws-panel-divider-line" />
+    <div onMouseDown={handleMouseDown} className="panel-divider">
+      <div className="panel-divider-line" />
     </div>
   )
 }

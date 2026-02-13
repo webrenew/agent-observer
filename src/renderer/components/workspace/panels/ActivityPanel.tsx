@@ -1,66 +1,112 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useMemo } from 'react'
 import { useAgentStore } from '../../../store/agents'
+import { CollapsibleSection } from '../CollapsibleSection'
+import { Sparkline } from '../Sparkline'
 import type { AgentEventType } from '../../../types'
 
-const EVENT_BADGES: Record<AgentEventType, { label: string; bg: string; fg: string }> = {
-  spawn:         { label: 'SPAWN',  bg: 'rgba(74,222,128,0.15)',  fg: '#4ade80' },
-  exit:          { label: 'EXIT',   bg: 'rgba(251,146,60,0.15)',  fg: '#fb923c' },
-  status_change: { label: 'STATE',  bg: 'rgba(96,165,250,0.15)',  fg: '#60a5fa' },
-  file_write:    { label: 'FILE',   bg: 'rgba(167,139,250,0.15)', fg: '#a78bfa' },
-  tool_call:     { label: 'TOOL',   bg: 'rgba(34,211,238,0.15)',  fg: '#22d3ee' },
-  commit:        { label: 'GIT',    bg: 'rgba(74,222,128,0.15)',  fg: '#4ade80' },
-  push:          { label: 'PUSH',   bg: 'rgba(74,222,128,0.15)',  fg: '#4ade80' },
-  test_pass:     { label: 'PASS',   bg: 'rgba(74,222,128,0.15)',  fg: '#4ade80' },
-  test_fail:     { label: 'FAIL',   bg: 'rgba(248,113,113,0.15)', fg: '#f87171' },
-  build_pass:    { label: 'BUILD',  bg: 'rgba(74,222,128,0.15)',  fg: '#4ade80' },
-  build_fail:    { label: 'BUILD',  bg: 'rgba(248,113,113,0.15)', fg: '#f87171' },
-  error:         { label: 'ERR',    bg: 'rgba(248,113,113,0.15)', fg: '#f87171' },
+const BADGE_STYLES: Record<string, { label: string; color: string }> = {
+  spawn: { label: 'MAIN', color: '#d4a040' },
+  exit: { label: 'EXIT', color: '#74747C' },
+  status_change: { label: 'MAIN', color: '#d4a040' },
+  file_write: { label: 'MAIN', color: '#d4a040' },
+  tool_call: { label: 'CRON', color: '#548C5A' },
+  commit: { label: 'MAIN', color: '#d4a040' },
+  push: { label: 'MAIN', color: '#d4a040' },
+  test_pass: { label: 'CRON', color: '#548C5A' },
+  test_fail: { label: 'CRON', color: '#548C5A' },
+  build_pass: { label: 'MAIN', color: '#d4a040' },
+  build_fail: { label: 'MAIN', color: '#d4a040' },
+  error: { label: 'CRON', color: '#548C5A' },
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+/** Generate a deterministic sparkline from a string hash */
+function sparkFromString(s: string): number[] {
+  if (!s.length) return [1, 2, 3, 4, 5, 6, 7]
+  const result: number[] = []
+  for (let i = 0; i < 7; i++) {
+    const code = s.charCodeAt(i % s.length) || 42
+    result.push(((code * (i + 1)) % 9) + 1)
+  }
+  return result
+}
+
+function formatTimeAgo(ts: number): string {
+  const seconds = Math.floor((Date.now() - ts) / 1000)
+  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  return `${Math.floor(seconds / 3600)}h ago`
 }
 
 export function ActivityPanel() {
   const events = useAgentStore((s) => s.events)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Show most recent first, take last 20
+  const displayEvents = useMemo(() => [...events].reverse().slice(0, 20), [events])
+
   useEffect(() => {
     const el = scrollRef.current
-    if (el) {
-      el.scrollTop = el.scrollHeight
-    }
+    if (el) el.scrollTop = 0
   }, [events.length])
 
   return (
-    <div className="flex flex-col h-full">
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-        {events.length === 0 && (
-          <div className="text-center py-8 text-gray-600 text-xs">
-            No activity yet. Start a terminal or chat session.
+    <CollapsibleSection title="ACTIVITY">
+      <div ref={scrollRef} style={{ padding: '0 16px 10px', overflow: 'auto', maxHeight: '100%' }}>
+        {displayEvents.length === 0 && (
+          <div style={{ color: '#595653', fontSize: 12, padding: '8px 0' }}>
+            No activity yet
           </div>
         )}
-        {events.map((evt) => {
-          const badge = EVENT_BADGES[evt.type] ?? { label: evt.type.toUpperCase(), bg: 'rgba(89,86,83,0.15)', fg: '#595653' }
+        {displayEvents.map((evt) => {
+          const badge = BADGE_STYLES[evt.type] ?? { label: evt.type.toUpperCase(), color: '#595653' }
+          const spark = sparkFromString(evt.description)
           return (
-            <div key={evt.id} className="ws-hover-row flex items-start gap-2 text-xs">
-              <span className="text-gray-600 shrink-0 tabular-nums" style={{ fontSize: 10 }}>
-                {formatTime(evt.timestamp)}
-              </span>
-              <span
-                className="ws-badge shrink-0"
-                style={{ background: badge.bg, color: badge.fg }}
-              >
-                {badge.label}
-              </span>
-              <span className="text-gray-400 truncate flex-1" title={evt.description}>
-                {evt.description}
-              </span>
+            <div
+              key={evt.id}
+              className="hover-row tooltip-wrapper"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <span
+                  style={{
+                    background: badge.color,
+                    color: '#0E0E0D',
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: '1px 6px',
+                    borderRadius: 3,
+                    letterSpacing: 0.5,
+                    fontFamily: 'inherit',
+                    flexShrink: 0,
+                  }}
+                >
+                  {badge.label}
+                </span>
+                <span
+                  style={{
+                    color: '#9A9692',
+                    fontSize: 13,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {evt.description}
+                </span>
+                <span className="tooltip-text">{evt.description}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                <Sparkline data={spark} color={badge.color} />
+                <span style={{ color: '#595653', fontSize: 12 }}>{formatTimeAgo(evt.timestamp)}</span>
+              </div>
             </div>
           )
         })}
       </div>
-    </div>
+    </CollapsibleSection>
   )
 }
