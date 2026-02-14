@@ -37,6 +37,21 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
       ipcMain.removeHandler('smoke:duplicate-ipc')
     })
 
+    await electronApp.evaluate(({ ipcMain }) => {
+      let calls = 0
+      ipcMain.on('smoke:duplicate-ipc-on', () => {
+        calls += 1
+      })
+      ipcMain.on('smoke:duplicate-ipc-on', () => {
+        calls += 1
+      })
+      ipcMain.emit('smoke:duplicate-ipc-on')
+      ipcMain.removeAllListeners('smoke:duplicate-ipc-on')
+      if (calls !== 1) {
+        throw new Error(`Expected one listener call after duplicate registration, got ${calls}`)
+      }
+    })
+
     if (process.platform === 'darwin') {
       await mainWindow.close()
       await expect

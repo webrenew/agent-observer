@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import path from 'path'
 import { setupTerminalHandlers, cleanupTerminals } from './terminal'
 import { setupSettingsHandlers, createApplicationMenu, loadSettings } from './settings'
@@ -54,17 +54,20 @@ function setupProcessTelemetryListeners(): void {
   })
 }
 
-let ipcHandleWrapped = false
-function patchIpcHandleWithTelemetry(): void {
-  if (ipcHandleWrapped) return
-  ipcHandleWrapped = true
+let ipcMainWrapped = false
+function patchIpcMainWithTelemetry(): void {
+  if (ipcMainWrapped) return
+  ipcMainWrapped = true
 
   const originalHandle = ipcMain.handle.bind(ipcMain)
+  const originalOn = ipcMain.on.bind(ipcMain)
   type InvokeHandler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown | Promise<unknown>
+  type OnListener = (event: IpcMainEvent, ...args: unknown[]) => void
   const isDuplicateHandlerError = (err: unknown): boolean => {
     const message = err instanceof Error ? err.message : String(err)
     return message.includes('Attempted to register a second handler')
   }
+  const onChannelListeners = new Map<string, OnListener>()
 
   ipcMain.handle = ((channel: string, listener: InvokeHandler) => {
     addStartupBreadcrumb('ipc.handle.register', { channel })
@@ -95,10 +98,31 @@ function patchIpcHandleWithTelemetry(): void {
       throw err
     }
   }) as typeof ipcMain.handle
+
+  ipcMain.on = ((channel: string, listener: OnListener) => {
+    addStartupBreadcrumb('ipc.on.register', { channel })
+    const wrapped: OnListener = (event, ...args) => {
+      try {
+        listener(event, ...args)
+      } catch (err) {
+        recordIpcRuntimeError(channel, err)
+        throw err
+      }
+    }
+
+    const existing = onChannelListeners.get(channel)
+    if (existing) {
+      ipcMain.removeListener(channel, existing)
+      addStartupBreadcrumb('ipc.on.duplicate_replaced', { channel })
+      recordTelemetryEvent('ipc.on.duplicate_replaced', { channel })
+    }
+    onChannelListeners.set(channel, wrapped)
+    return originalOn(channel, wrapped)
+  }) as typeof ipcMain.on
 }
 
 setupProcessTelemetryListeners()
-patchIpcHandleWithTelemetry()
+patchIpcMainWithTelemetry()
 
 // Track popped-out chat windows: sessionId → BrowserWindow
 const chatWindows = new Map<string, BrowserWindow>()
