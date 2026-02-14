@@ -692,22 +692,39 @@ export function SettingsPanel() {
                 {pluginCatalog.plugins.length > 0 && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                     {pluginCatalog.plugins.slice(0, 6).map((plugin) => (
-                      <span
-                        key={plugin.manifestPath}
-                        title={`${plugin.rootDir} (${plugin.source})`}
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 999,
-                          border: '1px solid rgba(84,140,90,0.35)',
-                          background: 'rgba(84,140,90,0.12)',
-                          color: '#7FB887',
-                          fontSize: 10,
-                          fontWeight: 600,
-                          letterSpacing: 0.3,
-                        }}
-                      >
-                        {plugin.name}
-                      </span>
+                      (() => {
+                        const isLoaded = plugin.loadState === 'loaded'
+                        const isFailed = plugin.loadState === 'failed'
+                        const border = isLoaded
+                          ? '1px solid rgba(84,140,90,0.35)'
+                          : isFailed
+                            ? '1px solid rgba(200,120,48,0.45)'
+                            : '1px solid rgba(116,116,124,0.35)'
+                        const background = isLoaded
+                          ? 'rgba(84,140,90,0.12)'
+                          : isFailed
+                            ? 'rgba(200,120,48,0.12)'
+                            : 'rgba(116,116,124,0.12)'
+                        const color = isLoaded ? '#7FB887' : isFailed ? '#c87830' : '#9A9692'
+                        return (
+                          <span
+                            key={plugin.manifestPath}
+                            title={`${plugin.rootDir} (${plugin.source})${plugin.loadError ? `\n${plugin.loadError}` : ''}`}
+                            style={{
+                              padding: '2px 8px',
+                              borderRadius: 999,
+                              border,
+                              background,
+                              color,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              letterSpacing: 0.3,
+                            }}
+                          >
+                            {plugin.name}
+                          </span>
+                        )
+                      })()
                     ))}
                     {pluginCatalog.plugins.length > 6 && (
                       <span style={{ fontSize: 10, color: '#595653', alignSelf: 'center' }}>
