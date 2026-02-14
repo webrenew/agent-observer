@@ -1,31 +1,67 @@
 ---
 title: Workspace Scope
-description: Keep each chat and agent run scoped to the correct project directory.
+description: Keep each run anchored to the correct project path to prevent cross-repo mistakes.
 ---
 
 # Workspace Scope
 
-Agent Space is workspace-first. Every chat should run against a known directory before the first message is sent.
+Workspace scope is the highest-impact control in Agent Space.
 
-## Default Behavior
+Most bad outcomes in AI coding workflows start with wrong scope.
 
-- Opening a folder in Explorer sets workspace scope.
-- New chat sessions inherit that selected workspace.
-- Scope is resolved before mount so the first prompt starts with correct context.
+## Scope Model
 
-## Custom Directory Mode
+- **Explorer-selected workspace** is the default scope.
+- New chat runs inherit that scope.
+- Scope should be verified before long or destructive tasks.
 
-Use custom directory mode when you need one workspace open but want a chat scoped to another folder.
+## Standard Operating Procedure
 
-Recommended pattern:
+Before every important run:
 
-1. Select the primary workspace in Explorer.
-2. In chat, switch directory scope for the active tab.
-3. Confirm scope indicator before starting long tasks.
+1. Confirm current workspace path in UI.
+2. Confirm target files are inside that path.
+3. Mention critical files explicitly in prompt.
+4. Start with a narrow first action.
 
-## Good Habits
+## Multi-Repo Workflow Pattern
 
-- One project per chat tab when possible.
-- Use explicit scope switches for multi-repo tasks.
-- Avoid cross-project prompts without verifying scope.
+When you must work across repositories:
 
+1. Use separate chat tabs per repository.
+2. Switch scope explicitly before each run.
+3. Keep prompts repository-specific.
+4. Avoid mixed-repo prompts without explicit path constraints.
+
+## Pre-Flight For Long Runs
+
+Before schedules or todo batches:
+
+1. Open a representative file in target repo.
+2. Run one small validation prompt.
+3. Confirm output references expected project context.
+4. Only then start recurring or batch automation.
+
+## Common Scope Failure Cases
+
+### Case: Editing wrong repository
+
+Fix:
+
+- pause current automation
+- switch workspace correctly
+- rerun with explicit path boundaries
+
+### Case: Search results look incomplete
+
+Fix:
+
+- verify workspace root
+- verify file permissions
+- ensure target path is inside workspace
+
+## Scope Safety Rules
+
+- One project per tab by default.
+- One automation job per repository path when possible.
+- Prefer explicit paths over implied context.

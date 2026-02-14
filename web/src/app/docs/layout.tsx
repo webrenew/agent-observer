@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { source } from "@/lib/source";
@@ -8,6 +8,11 @@ export default function Layout({ children }: { children: ReactNode }) {
     <RootProvider theme={{ enabled: false }}>
       <DocsLayout
         tree={source.pageTree}
+        containerProps={{
+          style: {
+            "--fd-layout-width": "100dvw",
+          } as CSSProperties,
+        }}
         nav={{
           title: (
             <span
@@ -30,4 +35,3 @@ export default function Layout({ children }: { children: ReactNode }) {
     </RootProvider>
   );
 }
-

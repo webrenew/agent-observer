@@ -1,30 +1,65 @@
 ---
 title: Status Model
-description: Agent states and activity labels used across the UI.
+description: Canonical runtime state and label semantics used across Agent Space UI.
 ---
 
 # Status Model
 
-Agent Space keeps status language consistent across chat, office, and timeline views.
+This page defines the language used for runtime status and activity labels.
 
 ## Agent States
 
 - `idle`: no active work
-- `thinking`: model planning/analysis in progress
-- `tool_calling`: executing tool actions
-- `streaming`: actively generating output
-- `waiting`: blocked on external input/state
-- `done`: task completed successfully
-- `error`: task failed or stopped with issue
+- `thinking`: model planning/analysis
+- `tool_calling`: tool actions running
+- `streaming`: output actively streaming
+- `waiting`: blocked on external state/input
+- `done`: completed successfully
+- `error`: completed with failure
 
-## Activity Labels
+## Scheduler Status
 
-- `Read`, `Write`, `Edit`, `Grep`, `Tool`, and similar labels reflect actual actions.
-- `CRON` is reserved for scheduled repeated tasks only.
-- Todo Runner execution is not a CRON action; it follows job/todo progress in Settings.
+For scheduled tasks:
 
-## Consistency Rules
+- `idle`: no run yet or paused
+- `running`: active execution
+- `success`: last run succeeded
+- `error`: last run failed
 
-- Labels should match underlying event type.
-- Token and activity updates should stay in sync.
-- Office active-agent count should reflect active chat sessions.
+Trigger types:
+
+- `cron`
+- `manual`
+
+## Todo Runner Status
+
+For todo-runner jobs:
+
+- `idle`: job defined but not running
+- `running`: currently processing an item
+- `success`: latest item run succeeded
+- `error`: latest item run failed
+
+Trigger types:
+
+- `auto` (queue progression)
+- `manual` (explicit user action)
+
+Progress fields to watch:
+
+- `completedTodos`
+- `failedTodos`
+- `blockedTodos`
+- `currentTodoIndex`
+
+## Activity Label Rules
+
+- Labels should reflect real underlying actions.
+- `CRON` is only for scheduled repeated actions.
+- Todo Runner progress is represented through job/todo status, not CRON labels.
+
+## Consistency Requirements
+
+- UI status should update from runtime state transitions.
+- Error surfaces must include actionable text.
+- Panel-level status and automation card status should not diverge.

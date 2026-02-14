@@ -1,39 +1,92 @@
 ---
 title: Troubleshooting
-description: Common issues and quick fixes for Agent Space desktop and web.
+description: Operator-focused diagnostics for workspace, scheduler, todo runner, and runtime failures.
 ---
 
 # Troubleshooting
 
-## App opens in temp directory
+Use this page to isolate failures quickly.
 
-Symptom: workspace resolves to a temp path like `/var/folders/.../agent-space-smoke-*`.
+## Fast Triage Sequence
+
+1. Verify current workspace path.
+2. Verify the failing feature's required directory/command is valid.
+3. Check local diagnostics and in-card error state.
+4. Re-run with a minimal prompt/todo item.
+5. Expand scope only after baseline success.
+
+## Workspace Resolves To Wrong Path
+
+Symptom:
+
+- Workspace appears as a temp path like `/var/folders/.../agent-space-smoke-*`
 
 Fix:
 
-1. Set default app workspace to your intended directory (for example `/Users/tradecraft/dev`).
-2. Reopen workspace from Explorer and verify path in scope indicator.
+1. Set default workspace directory to the intended repo root.
+2. Reopen folder in Explorer.
+3. Confirm scope indicator before sending chat prompts.
 
-## Blue screen / renderer crash
+## Renderer Crash / Blue Screen
 
-1. Restart app.
-2. Reopen one workspace first.
-3. Check local logs for renderer/main process errors.
-4. If reproducible, capture steps and last action before crash.
+1. Restart the app.
+2. Reopen one workspace only.
+3. Reproduce with minimal actions.
+4. Check diagnostics logs for `render-process-gone` or related errors.
 
-## Search missing expected files
+## Search Missing Expected Files
 
 1. Confirm workspace root is correct.
-2. Verify excluded directories are not your target paths.
-3. Grant missing file permissions in macOS privacy settings.
+2. Confirm target path is inside workspace.
+3. Check macOS privacy permissions for folder access.
+4. Re-run search with exact file name.
 
-## Duplicate active agents
+## Scheduled Action Not Running
 
-If one chat appears as multiple office agents, refresh session state or restart app and verify single active thread.
+1. Confirm task is enabled.
+2. Validate cron has 5 fields.
+3. Confirm app was open at trigger time.
+4. Use **Run now** to test immediate execution path.
+5. Verify working directory exists.
 
-## Todo Runner job not progressing
+## Scheduled Action Fails Immediately
 
-1. Confirm **Runner command** is valid and executable in the selected working directory.
-2. Run the same command manually in terminal to verify dependencies are installed.
-3. Check that your runner reads todo context from env/stdin and exits with non-zero on failures.
-4. Inspect the latest error shown in the Todo Runner card and fix the underlying worker issue.
+1. Check `Last error` on schedule card.
+2. Verify prompt is non-empty and scoped.
+3. Verify runtime dependencies for your command/tooling.
+4. Tighten prompt and retry manually.
+
+## Todo Runner Job Not Progressing
+
+1. Verify **Runner command** exists and is executable.
+2. Run the same command manually in target directory.
+3. Confirm runner reads env/stdin payload.
+4. Confirm runner exits non-zero on failures.
+5. Check job card for the current failed todo and retry count.
+
+## Todo Runner Item Keeps Failing
+
+1. Capture stderr/error from runner output.
+2. Reproduce the item manually outside Todo Runner.
+3. Fix dependency or prompt issue.
+4. Click **Start** to continue from remaining items.
+
+If attempts reached max and item is blocked:
+
+- fix root cause
+- use **Reset Progress** only if full replay is acceptable
+
+## Duplicate Active Agents
+
+If one chat appears as multiple office agents:
+
+1. Refresh session state.
+2. Restart app.
+3. Reopen one chat and confirm single active thread.
+
+## If You Need A Clean Baseline
+
+1. Close extra tabs/runs.
+2. Reopen one workspace.
+3. Test one small prompt or one short todo item.
+4. Add complexity incrementally.

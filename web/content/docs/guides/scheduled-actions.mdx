@@ -1,50 +1,123 @@
 ---
 title: Scheduled Actions
-description: Configure CRON actions so prompts run on a recurring schedule.
+description: Configure cron-based recurring prompts in Agent Space with validation, safety, and failure recovery guidance.
 ---
 
 # Scheduled Actions
 
-Agent Space supports recurring task execution through the **Schedules** tab in Settings.
+Use **Scheduled Actions** for recurring prompts that should run on a timetable.
 
-## What CRON Means in Agent Space
+Examples:
 
-- `CRON` indicates a scheduled repeated task.
-- `CRON` is not a file glob and should not label non-scheduled actions.
+- Daily repository health checks
+- Hourly sync/status summaries
+- Weekday release readiness checks
+- Routine maintenance prompts
 
-## Typical Use Cases
+If you need to process a **finite list of todos** until completion, use [Todo Runner](/docs/guides/todo-runner) instead.
 
-- Daily repo health checks
-- Repeated summary generation
-- Scheduled maintenance prompts
-- Routine reporting workflows
+## Open Scheduler
 
-## Configure A Schedule
+Go to **Settings -> Schedules**.
 
-1. Open **Settings -> Schedules**.
-2. Click **+ Add Schedule**.
-3. Set:
-   - Task name
-   - CRON expression (`minute hour day month weekday`)
-   - Working directory
-   - Prompt to run
-4. Save the task.
-5. Optionally click **Run now** to validate immediately.
+Each schedule includes:
 
-## Useful CRON Examples
+- name
+- cron expression
+- working directory
+- prompt
+- YOLO mode toggle
+- runtime status (`idle`, `running`, `success`, `error`)
+
+## Create A Schedule
+
+1. Click **+ Add Schedule**.
+2. Fill in:
+   - **Task name**
+   - **Cron**: `minute hour day month weekday`
+   - **Directory**: target workspace path
+   - **Prompt**: exact recurring work instruction
+3. Save the task.
+4. Click **Run now** once to validate before waiting for cron.
+
+## Cron Expression Reference
+
+Agent Space uses a 5-field cron format:
+
+`minute hour day month weekday`
+
+Common examples:
 
 - `*/15 * * * *` every 15 minutes
-- `0 * * * *` top of every hour
-- `0 9 * * 1-5` weekday 9:00 AM
-- `30 18 * * *` every day at 6:30 PM
+- `0 * * * *` every hour
+- `0 9 * * 1-5` 9:00 AM weekdays
+- `30 18 * * *` 6:30 PM every day
+- `0 2 * * 0` 2:00 AM every Sunday
+
+## Prompt Design For Recurring Jobs
+
+Use deterministic prompt structure:
+
+1. State objective in one sentence.
+2. Define scope (repo/path/system).
+3. Define output format (short report, checklist, pass/fail summary).
+4. Define failure behavior (stop, retry externally, or alert).
+
+Good recurring prompt shape:
+
+- "Run X checks in Y directory, summarize failures grouped by severity, include next 3 actions."
+
+Avoid:
+
+- open-ended prompts with no expected output structure
+- prompts that mutate many files without strict boundaries
 
 ## Validation Checklist
 
-- Schedule status updates after each run.
-- `Next run` and `Last run` timestamps update as expected.
-- Errors are visible in the schedule card and diagnostics logs.
+After saving a schedule:
 
-## Related Feature: Todo Runner
+1. **Run now** succeeds once.
+2. `Last run` and duration fields update.
+3. `Next run` is populated as expected.
+4. Errors (if any) are visible in the schedule card.
 
-For large one-time or resumable checklists, use **Settings -> Todo Runner** instead of CRON.
-Todo Runner executes todos sequentially until all are complete.
+## Runtime Model
+
+- Scheduler loop checks tasks regularly.
+- Only enabled tasks run.
+- Running tasks are not started twice.
+- Manual and cron-triggered runs share the same execution path.
+- Schedule definitions are persisted locally.
+
+Persistence location:
+
+- `~/.agent-space/schedules.json`
+
+## Failure Modes And Fixes
+
+### Schedule stays idle
+
+- Verify it is enabled.
+- Verify cron is valid (5 fields).
+- Verify app is running at scheduled time.
+
+### Immediate error on run
+
+- Verify directory exists and is readable.
+- Verify prompt is non-empty.
+- Verify underlying runner/tooling dependencies are available.
+
+### Wrong files being touched
+
+- Correct working directory.
+- Tighten prompt scope with explicit path constraints.
+- Disable task until prompt is corrected.
+
+## Operational Safety
+
+For high-impact recurring tasks:
+
+1. Test with a short interval in a staging repo.
+2. Review 2-3 consecutive successful runs.
+3. Move to production schedule.
+4. Keep a rollback plan for unintended changes.

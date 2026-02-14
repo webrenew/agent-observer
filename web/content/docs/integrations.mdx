@@ -1,22 +1,78 @@
 ---
 title: Integrations
-description: Tooling and workflow integrations available in Agent Space.
+description: How Agent Space integrates with local tools, agent runtimes, and external runner commands.
 ---
 
 # Integrations
 
-Agent Space is built to coexist with local-first coding workflows.
+Agent Space is designed to integrate with local-first development tooling rather than replacing it.
 
-## Supported Workflows
+## Integration Categories
 
-- Claude Code sessions and command execution
-- Local file search and read/write operations
-- Explorer-based project targeting
-- Scheduled actions (CRON) in-app
+## 1) Local Project + Filesystem
 
-## Integration Direction
+Used for:
 
-- Keep terminal and chat state synchronized.
-- Route app actions through explicit workspace context.
-- Prefer system-level notifications for chat completion events.
+- workspace scoping
+- explorer/search/file context
+- prompt grounding to local files
 
+Operational requirement:
+
+- grant file permissions to target workspace paths in macOS.
+
+## 2) Agent Runtime Sessions
+
+Agent Space can orchestrate agent runtime behavior through its desktop runtime layer.
+
+Examples:
+
+- Claude-oriented session flows in app runtime
+- local CLI command execution in terminal context
+
+## 3) Scheduler Automation
+
+Recurring prompts through **Settings -> Schedules**.
+
+Best for:
+
+- periodic checks
+- recurring reporting
+- predictable maintenance loops
+
+## 4) Todo Runner Automation
+
+External runner command execution through **Settings -> Todo Runner**.
+
+Best for:
+
+- large finite checklists
+- Agent SDK-backed custom workers
+- resumable multi-item workloads
+
+## Integration Patterns That Scale
+
+1. Keep one workspace per active workflow.
+2. Keep prompts deterministic and output-focused.
+3. Validate small before scaling up batch size/frequency.
+4. Treat runner contracts as API boundaries (version and test them).
+
+## Recommended Stack For Long-Running Work
+
+- Agent Space Todo Runner for orchestration/progress state
+- custom Anthropic Agent SDK worker for execution logic
+- repository-level CI for post-run verification
+
+## Integration Anti-Patterns
+
+- unscoped prompts across many repositories
+- runner commands with hidden side effects outside workspace
+- silent failure behavior (exit `0` on actual failure)
+- recurring jobs without first-run validation
+
+## Next Steps
+
+- [Scheduled Actions](/docs/guides/scheduled-actions)
+- [Todo Runner](/docs/guides/todo-runner)
+- [Agent SDK Runner Recipes](/docs/guides/agent-sdk-runner-recipes)
+- [IPC API](/docs/reference/ipc-api)

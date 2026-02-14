@@ -1,34 +1,74 @@
 ---
 title: Chat and Files
-description: Use chat with image paste, file references, and explorer-assisted context.
+description: High-signal file-aware chat workflows for reliable coding outcomes.
 ---
 
 # Chat and Files
 
-Agent Space chat supports file-aware workflows for local coding tasks.
+This guide focuses on getting reliable outcomes from file-aware chat workflows.
 
-## Add Files to Context
+## Why File Context Discipline Matters
 
-- Use `@` mentions to reference files in prompts.
-- Pick files from Explorer when building multi-file requests.
-- Keep references explicit for reproducible agent runs.
+Agent output quality depends on context precision.
 
-## Images in Chat
+Best practice:
 
-- Paste screenshots directly into chat input.
-- Upload images manually as a fallback.
-- Use images for UI bugs, render issues, or visual diffs.
+- reference exact files
+- keep prompts bounded
+- validate outputs against expected files
 
-## Explorer + Search Workflow
+## Recommended Workflow
 
-1. Open project folder in Explorer.
-2. Use Search to find target files quickly.
-3. Reference files in chat with `@` or direct path.
-4. Run actions, then verify changes in editor/diff view.
+1. Open target workspace in Explorer.
+2. Use Search to locate exact files.
+3. Reference files in chat with `@` mentions.
+4. Send a narrow task prompt.
+5. Validate changes in file/diff panels.
 
-## Search Notes
+## Prompt Pattern For File Work
 
-- Local search is optimized for project roots.
-- Excluded system/app container paths reduce noisy results.
-- Granting additional file permissions can improve index coverage.
+Use this structure:
 
+1. objective
+2. files in scope
+3. constraints
+4. expected output
+
+Example:
+
+"Update `src/main/todo-runner.ts` to improve error reporting for blocked items. Do not change retry semantics. Return a short summary and list edited files."
+
+## Image-Aided Debugging
+
+For UI issues:
+
+1. paste screenshot directly in chat
+2. reference affected file paths
+3. request a fix plus visual verification steps
+
+This is much more reliable than purely textual bug reports.
+
+## Verification Checklist
+
+After each run:
+
+1. Confirm only expected files changed.
+2. Confirm output summary matches actual edits.
+3. Run relevant checks/tests.
+4. Capture any residual errors before next run.
+
+## Common Pitfalls
+
+- broad prompts across many files
+- missing file references for critical changes
+- skipping post-change verification
+- relying on implicit repository context
+
+## Recovery Pattern
+
+If result quality drops:
+
+1. reduce scope to one file/task
+2. restate constraints explicitly
+3. rerun with concrete success criteria
+4. scale back up once stable

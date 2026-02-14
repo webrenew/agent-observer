@@ -1,0 +1,120 @@
+---
+title: IPC API
+description: Renderer-to-main IPC contracts for scheduling and todo-runner automation.
+---
+
+# IPC API
+
+This page documents the in-app IPC contracts exposed through `window.electronAPI`.
+
+## Scheduler API
+
+Path: `window.electronAPI.scheduler`
+
+Methods:
+
+- `list(): Promise<SchedulerTask[]>`
+- `upsert(task: SchedulerTaskInput): Promise<SchedulerTask>`
+- `delete(taskId: string): Promise<void>`
+- `runNow(taskId: string): Promise<SchedulerTask>`
+- `onUpdated(callback: () => void): Unsubscribe`
+
+### SchedulerTaskInput
+
+```ts
+{
+  id?: string;
+  name: string;
+  cron: string; // minute hour day month weekday
+  prompt: string;
+  workingDirectory: string;
+  enabled: boolean;
+  yoloMode: boolean;
+}
+```
+
+### Scheduler Runtime Fields
+
+Returned schedule entries include runtime fields such as:
+
+- `nextRunAt`
+- `isRunning`
+- `lastRunAt`
+- `lastStatus`
+- `lastError`
+- `lastDurationMs`
+- `lastRunTrigger`
+
+Persistence location:
+
+- `~/.agent-space/schedules.json`
+
+## Todo Runner API
+
+Path: `window.electronAPI.todoRunner`
+
+Methods:
+
+- `list(): Promise<TodoRunnerJob[]>`
+- `upsert(job: TodoRunnerJobInput): Promise<TodoRunnerJob>`
+- `delete(jobId: string): Promise<void>`
+- `start(jobId: string): Promise<TodoRunnerJob>`
+- `pause(jobId: string): Promise<TodoRunnerJob>`
+- `reset(jobId: string): Promise<TodoRunnerJob>`
+- `onUpdated(callback: () => void): Unsubscribe`
+
+### TodoRunnerJobInput
+
+```ts
+{
+  id?: string;
+  name: string;
+  prompt: string;
+  workingDirectory: string;
+  runnerCommand: string;
+  enabled: boolean;
+  yoloMode: boolean;
+  todoItems: string[];
+}
+```
+
+### TodoRunnerJob Runtime Fields
+
+Returned jobs include runtime/progress fields:
+
+- `isRunning`
+- `lastRunAt`
+- `lastStatus`
+- `lastError`
+- `lastDurationMs`
+- `lastRunTrigger`
+- `totalTodos`
+- `completedTodos`
+- `failedTodos`
+- `blockedTodos`
+- `currentTodoIndex`
+- `nextTodoText`
+
+Persistence location:
+
+- `~/.agent-space/todo-runner.json`
+
+## Update Events
+
+- Scheduler update channel: `scheduler:updated`
+- Todo Runner update channel: `todoRunner:updated`
+
+Both are subscribed through the preload helpers (`onUpdated`) and should trigger a fresh `list()` call in UI state.
+
+## Error Handling Expectations
+
+- Invalid input throws from IPC handler and should be shown in UI.
+- Missing directories are reported as runtime errors in task/job status.
+- Long-running actions should always update UI via corresponding `onUpdated` event.
+
+## Related Source Files
+
+- `src/preload/index.ts`
+- `src/shared/electron-api.ts`
+- `src/main/scheduler.ts`
+- `src/main/todo-runner.ts`

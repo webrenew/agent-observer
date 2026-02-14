@@ -1,23 +1,52 @@
 ---
 title: Overview
-description: What Agent Space is, who it is for, and how the desktop and web experiences align.
+description: What Agent Space is, who it is for, and how to use it as a local control plane for AI coding workflows.
 ---
 
 # Overview
 
-Agent Space is designed for developers running AI agents locally who need a single control plane across chat, tools, files, and terminal work.
+Agent Space is a local-first control plane for AI-assisted development work.
 
-## Core Surfaces
+It combines chat, terminal, file context, and operational telemetry so users can run agent workflows with tighter scope and better observability.
 
-- **Explorer**: project tree with quick path targeting
+## Who It Is For
+
+- developers running AI workflows across local repositories
+- operators managing recurring and long-running coding tasks
+- teams that need clearer runtime visibility than plain terminal sessions
+
+## Core Product Surfaces
+
+- **Explorer**: choose and verify workspace scope
 - **Search**: fast local file discovery
-- **Chat**: workspace-scoped agent conversations
-- **Terminal**: command execution and session visibility
-- **Tokens/Office**: telemetry and real-time 3D activity
+- **Chat**: workspace-scoped agent interactions
+- **Terminal**: command execution visibility
+- **Activity/Office/Tokens**: runtime observability and status
+- **Settings**: scheduler and todo-runner automation controls
 
-## Why It Exists
+## Primary Jobs To Be Done
 
-- Reduce context switching across coding tools.
-- Keep each agent run anchored to the correct directory.
-- Track operations and cost signals in one place.
+1. Run one-off coding tasks with exact workspace context.
+2. Schedule recurring checks and maintenance prompts.
+3. Execute large todo backlogs to completion with progress tracking.
+4. Diagnose failures quickly from runtime state and error surfaces.
 
+## Product Principles
+
+- **Scope first**: every run should be anchored to a known directory.
+- **Local first**: workflows should work with local files and local tooling.
+- **Operational clarity**: state should be visible without guesswork.
+- **Recoverability**: long tasks should resume safely after interruption.
+
+## Choosing The Right Automation Mode
+
+- Use **Schedules** for recurring, time-based prompts.
+- Use **Todo Runner** for finite large checklists that must run until done.
+
+## Suggested Reading Path
+
+1. [Quickstart](/docs/quickstart)
+2. [Workspace Scope](/docs/guides/workspace-scope)
+3. [Scheduled Actions](/docs/guides/scheduled-actions)
+4. [Todo Runner](/docs/guides/todo-runner)
+5. [Troubleshooting](/docs/reference/troubleshooting)

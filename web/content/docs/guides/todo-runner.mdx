@@ -1,36 +1,61 @@
 ---
 title: Todo Runner
-description: Run large todo lists sequentially until completion using an external Agent SDK runner.
+description: Execute very large todo lists sequentially until completion using an external runner command (ideal for Agent SDK workers).
 ---
 
 # Todo Runner
 
-Todo Runner is designed for long-running jobs where a user provides a large list of todos and wants execution to continue until every item is complete (or blocked).
+**Todo Runner** is for long, finite workloads where a user gives a large checklist and expects continuous execution until all items are done (or explicitly blocked).
 
-This is separate from CRON schedules:
+Use cases:
 
-- **Schedules**: recurring prompt runs on a timetable.
-- **Todo Runner**: sequential execution of a finite checklist.
+- migrating dozens of modules
+- batch bug-fix backlogs
+- large test-remediation lists
+- iterative codebase cleanups
 
-## Where To Find It
+## When To Use Todo Runner vs Schedules
 
-Open **Settings -> Todo Runner**.
+- Use **Todo Runner** for one large checklist that should run to completion.
+- Use **Schedules** for recurring time-based prompts.
 
-## Configure A Todo Run
+## Open Todo Runner
+
+Go to **Settings -> Todo Runner**.
+
+Each job includes:
+
+- name
+- working directory
+- runner command
+- global prompt
+- todo items (one per line)
+- runtime/progress status
+
+## Create A Job
 
 1. Click **+ Add Todo Run**.
-2. Set:
+2. Fill in:
    - **Name**
-   - **Directory** (workspace root to execute in)
-   - **Runner command** (your external worker process)
-   - **Global prompt** (applies to every todo)
-   - **Todo items** (one item per line)
+   - **Directory**
+   - **Runner command** (your Agent SDK worker entrypoint)
+   - **Global prompt** (applies to every item)
+   - **Todo items** (one per line)
 3. Click **Save**.
 4. Click **Start**.
 
+## Runtime Behavior
+
+- Items run strictly in list order.
+- One item is active at a time.
+- Success marks item as done and advances.
+- Failure retries up to 3 attempts per item.
+- Item hitting max attempts becomes blocked; job pauses.
+- You can **Pause**, **Start**, or **Reset Progress**.
+
 ## Runner Contract
 
-Agent Space launches your runner command and passes todo context through environment variables and stdin JSON.
+Agent Space executes your runner command in the job directory and passes context through both env vars and stdin JSON.
 
 ### Environment Variables
 
@@ -43,35 +68,80 @@ Agent Space launches your runner command and passes todo context through environ
 - `AGENT_SPACE_TODO_JOB_NAME`
 - `AGENT_SPACE_YOLO_MODE`
 
-### Stdin Payload
+### Stdin JSON Shape
 
-The same structured payload is written to stdin (JSON), including:
+```json
+{
+  "job": {
+    "id": "todo-...",
+    "name": "Migration Batch",
+    "prompt": "Global instruction",
+    "workingDirectory": "/path/to/repo",
+    "yoloMode": false
+  },
+  "todo": {
+    "id": "item-...",
+    "text": "Migrate auth middleware in packages/api",
+    "index": 4,
+    "total": 30,
+    "attempts": 1,
+    "maxAttempts": 3
+  },
+  "todoItems": [
+    { "id": "item-...", "text": "...", "status": "done", "index": 1 }
+  ]
+}
+```
 
-- job metadata
-- current todo item
-- full todo list with status
+## Minimal Runner Expectations
 
-Use this payload to map one todo item to one Agent SDK execution unit.
+Your runner should:
 
-## Runtime Behavior
+1. read todo payload from env or stdin
+2. execute exactly one todo item per invocation
+3. exit with code `0` on success
+4. exit non-zero on failure with useful stderr
 
-- Todos run one-by-one in order.
-- Completed items are marked done and skipped on future runs.
-- Failed items are retried up to 3 attempts.
-- Items that exceed retry limit are marked blocked, and the job pauses.
-- You can **Pause**, **Start**, or **Reset Progress** at any time.
+Todo Runner treats either non-zero exit or explicit error output as failure.
 
-## Recommended Agent SDK Pattern
+## Validation Workflow
 
-Use a runner command that wraps Anthropic Agent SDK calls (instead of Claude Code CLI), for example:
+Before running a 100+ item list:
 
-- `python3 /path/to/agent_sdk_worker.py`
-- `node /path/to/agent-sdk-runner.js`
+1. Test with 2 items.
+2. Confirm progress increments correctly.
+3. Force one failure and verify retry behavior.
+4. Confirm blocked behavior after max retries.
+5. Reset and start full list.
 
-The runner should:
+## Persistence And Resume
 
-1. Read payload from env or stdin.
-2. Execute exactly the current todo item.
-3. Exit `0` on success.
-4. Exit non-zero with useful stderr on failure.
+Todo job definitions and item states are persisted locally:
 
+- `~/.agent-space/todo-runner.json`
+
+If the app restarts, saved state is reloaded and unfinished work can be resumed.
+
+## Failure Recovery
+
+### Job stuck in error
+
+- Inspect `Last error` on the job card.
+- Fix runner command or dependency issue.
+- Click **Start** to continue from remaining items.
+
+### Wrong item execution behavior
+
+- Verify runner consumes `todo.text` from payload.
+- Ensure one-item-per-process contract is respected.
+- Avoid internal loops that consume multiple items in one run.
+
+### Re-run from scratch
+
+- Click **Reset Progress**.
+- Confirm all items return to pending.
+- Start again.
+
+## Next Step
+
+For concrete Python/Node worker patterns and output contracts, see [Agent SDK Runner Recipes](/docs/guides/agent-sdk-runner-recipes).

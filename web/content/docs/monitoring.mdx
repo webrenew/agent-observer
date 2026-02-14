@@ -1,22 +1,61 @@
 ---
 title: Monitoring
-description: Observe agent state, activity, and token consumption in real time.
+description: Monitor runtime state, automation health, and execution reliability in Agent Space.
 ---
 
 # Monitoring
 
-Agent Space provides live telemetry during chat and tool execution.
+Agent Space exposes runtime state so operators can detect failures quickly and keep long-running work healthy.
 
-## What You Can Monitor
+## What To Monitor
 
-- Agent status transitions (`thinking`, `tool_calling`, `done`, `error`)
-- Timeline actions and recency
-- Token input/output totals
-- File modifications and active task context
+## Agent/session level
 
-## Operational Notes
+- status transitions (`thinking`, `tool_calling`, `streaming`, `done`, `error`)
+- active agent count vs expected active chats
+- token movement relative to workload intensity
 
-- Activity labels should match action types (for example, `CRON` is only for scheduled runs).
-- A single chat should correspond to one active office agent unless multi-agent mode is intentionally enabled.
-- Token counters should move with chat/tool events and remain zero only when no model calls were made.
+## Scheduler level
 
+- task status distribution (success/error)
+- `nextRunAt` correctness
+- recurring failure patterns by task
+
+## Todo Runner level
+
+- completed vs total todos
+- failed and blocked counts
+- current item and retry pressure
+
+## Daily Operator Checks
+
+1. Review any `error` statuses first.
+2. Check for blocked todo items.
+3. Validate recurring tasks still match current repository structure.
+4. Confirm token/activity behavior is plausible.
+
+## Alert-Like Heuristics
+
+Investigate quickly if:
+
+- many schedule failures appear after a repo change
+- todo jobs stall repeatedly on one item
+- token counters flatline during expected model activity
+- activity labels do not match runtime behavior
+
+## Label Semantics
+
+- `CRON` should represent scheduled repeated work only.
+- Todo Runner work should be interpreted through job progress state, not CRON semantics.
+
+## Incident Notes Best Practice
+
+For recurring failures, record:
+
+- failing task/job id
+- exact error message
+- first observed timestamp
+- root cause
+- mitigation applied
+
+This makes future regression diagnosis much faster.
