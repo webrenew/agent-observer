@@ -689,14 +689,15 @@ function toRuntimePlugin(plugin: RawDiscoveredPlugin): RuntimeDiscoveredPlugin {
   }
 }
 
-async function syncPluginCatalogFromSettings(): Promise<void> {
+async function syncPluginCatalogFromSettings(): Promise<PluginCatalogSnapshot | null> {
   try {
     const settings = await window.electronAPI.settings.get()
-    await syncPluginCatalogFromProfiles(settings.claudeProfiles)
+    return await syncPluginCatalogFromProfiles(settings.claudeProfiles)
   } catch (err) {
     logRendererEvent('warn', 'plugin.catalog.settings_sync_failed', {
       error: toErrorMessage(err),
     })
+    return null
   }
 }
 
@@ -852,7 +853,11 @@ function registerBuiltinCommands(): void {
     {
       name: 'plugins',
       description: 'List loaded renderer plugins and commands.',
-      execute: () => {
+      execute: async (context) => {
+        const firstArg = context.args[0]?.toLowerCase()
+        if (firstArg === 'reload' || firstArg === 'rescan') {
+          await syncPluginCatalogFromSettings()
+        }
         const loaded = pluginCatalogSnapshot.plugins.filter((plugin) => plugin.loadState === 'loaded')
         const commandNames = getRegisteredPluginCommands().map((command) => `/${command.name}`)
         const pluginList = loaded.length > 0
@@ -861,7 +866,21 @@ function registerBuiltinCommands(): void {
         const commands = commandNames.length > 0
           ? commandNames.join(', ')
           : 'none'
-        return `Plugins loaded: ${pluginList}\nCommands: ${commands}`
+        const reloadHint = 'Tip: use /plugins reload or /plugins-reload after editing plugin code.'
+        return `Plugins loaded: ${pluginList}\nCommands: ${commands}\n${reloadHint}`
+      },
+    },
+    { pluginId: 'builtin.runtime' }
+  )
+  registerPluginCommand(
+    {
+      name: 'plugins-reload',
+      description: 'Rescan plugin dirs and reload renderer plugin entries.',
+      execute: async () => {
+        const snapshot = await syncPluginCatalogFromSettings()
+        const current = snapshot ?? pluginCatalogSnapshot
+        const loadedCount = current.plugins.filter((plugin) => plugin.loadState === 'loaded').length
+        return `Reloaded plugins. Loaded ${loadedCount}/${current.plugins.length}. Warnings: ${current.warnings.length}.`
       },
     },
     { pluginId: 'builtin.runtime' }
