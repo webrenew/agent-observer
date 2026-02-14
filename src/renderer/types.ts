@@ -16,6 +16,71 @@ export type AgentEventType =
   | 'tool_call' | 'commit' | 'push'
   | 'test_pass' | 'test_fail' | 'build_pass' | 'build_fail' | 'error'
 
+export type PluginHookEvent =
+  | 'session_start'
+  | 'session_end'
+  | 'message_received'
+  | 'message_sent'
+  | 'before_tool_call'
+  | 'after_tool_call'
+
+export interface PluginHookBase {
+  chatSessionId: string
+  workspaceDirectory: string | null
+  agentId: string | null
+  timestamp: number
+}
+
+export interface PluginSessionStartHook extends PluginHookBase {
+  promptPreview: string
+  yoloMode: boolean
+  profileId: string
+  profileSource: 'rule' | 'default' | 'fallback'
+}
+
+export interface PluginSessionEndHook extends PluginHookBase {
+  status: 'success' | 'error' | 'stopped'
+  durationMs: number
+  rewardScore: number | null
+}
+
+export interface PluginMessageReceivedHook extends PluginHookBase {
+  message: string
+  messageLength: number
+  mentionCount: number
+  attachmentCount: number
+}
+
+export interface PluginMessageSentHook extends PluginHookBase {
+  role: 'assistant' | 'error'
+  message: string
+  messageLength: number
+}
+
+export interface PluginBeforeToolCallHook extends PluginHookBase {
+  toolName: string
+  toolUseId: string
+  toolInput: Record<string, unknown>
+}
+
+export interface PluginAfterToolCallHook extends PluginHookBase {
+  toolUseId: string
+  isError: boolean
+  contentPreview: string
+}
+
+export interface PluginHookEventPayloadMap {
+  session_start: PluginSessionStartHook
+  session_end: PluginSessionEndHook
+  message_received: PluginMessageReceivedHook
+  message_sent: PluginMessageSentHook
+  before_tool_call: PluginBeforeToolCallHook
+  after_tool_call: PluginAfterToolCallHook
+}
+
+export type PluginHookHandler<E extends PluginHookEvent = PluginHookEvent> =
+  (payload: PluginHookEventPayloadMap[E]) => void | Promise<void>
+
 export type TerminalThemeName =
   | 'agent-space'
   | 'dracula'

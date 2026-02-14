@@ -12,6 +12,7 @@ import { buildWorkspaceContextPrompt } from '../../lib/workspaceContext'
 import { computeRunReward } from '../../lib/rewardEngine'
 import { logRendererEvent } from '../../lib/diagnostics'
 import { resolveClaudeProfile } from '../../lib/claudeProfile'
+import { emitPluginHook } from '../../plugins/runtime'
 import { ChatMessageBubble } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 
@@ -146,6 +147,11 @@ function parseUsageSnapshot(usageValue: unknown, modelUsageValue: unknown): Usag
     tokensByModel,
     hasAnyUsage: hasUsageFields || hasModelUsage,
   }
+}
+
+function truncateForHook(value: string, max = 500): string {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}…`
 }
 
 /** Orchid-style typing indicator with cherry blossom */
@@ -391,54 +397,67 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
     const workspaceDirectory = activeRunDirectoryRef.current
     const agentId = agentIdRef.current
-    if (!workspaceDirectory || !agentId) return
-
-    const baseline = runTokenBaselineRef.current
-    const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId)
-    const tokenDeltaInput = Math.max(
-      0,
-      (agent?.tokens_input ?? baseline?.input ?? 0) - (baseline?.input ?? 0)
-    )
-    const tokenDeltaOutput = Math.max(
-      0,
-      (agent?.tokens_output ?? baseline?.output ?? 0) - (baseline?.output ?? 0)
-    )
     const durationMs = runStartedAtRef.current ? Date.now() - runStartedAtRef.current : 0
+    let rewardScore: number | null = null
 
-    const reward = addReward(computeRunReward({
+    if (workspaceDirectory && agentId) {
+      const baseline = runTokenBaselineRef.current
+      const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId)
+      const tokenDeltaInput = Math.max(
+        0,
+        (agent?.tokens_input ?? baseline?.input ?? 0) - (baseline?.input ?? 0)
+      )
+      const tokenDeltaOutput = Math.max(
+        0,
+        (agent?.tokens_output ?? baseline?.output ?? 0) - (baseline?.output ?? 0)
+      )
+
+      const reward = addReward(computeRunReward({
+        chatSessionId,
+        workspaceDirectory,
+        status,
+        durationMs,
+        tokenDeltaInput,
+        tokenDeltaOutput,
+        contextFiles: runContextFilesRef.current,
+        toolCalls: runToolCallCountRef.current,
+        fileWrites: runFileWriteCountRef.current,
+        unresolvedMentions: runUnresolvedMentionsRef.current,
+        yoloMode: runYoloModeRef.current,
+      }))
+      rewardScore = reward.rewardScore
+
+      addEvent({
+        agentId,
+        agentName: chatSession?.label ?? 'Chat',
+        type: 'status_change',
+        description: `Reward ${reward.rewardScore} (${status})`,
+      })
+      logRendererEvent('info', 'chat.reward.recorded', {
+        chatSessionId,
+        workspaceDirectory,
+        status,
+        rewardScore: reward.rewardScore,
+        tokenDeltaInput,
+        tokenDeltaOutput,
+        contextFiles: runContextFilesRef.current,
+        toolCalls: runToolCallCountRef.current,
+        fileWrites: runFileWriteCountRef.current,
+        unresolvedMentions: runUnresolvedMentionsRef.current,
+        yoloMode: runYoloModeRef.current,
+      })
+    }
+
+    void emitPluginHook('session_end', {
       chatSessionId,
-      workspaceDirectory,
+      workspaceDirectory: workspaceDirectory ?? workingDir ?? null,
+      agentId,
+      timestamp: Date.now(),
       status,
       durationMs,
-      tokenDeltaInput,
-      tokenDeltaOutput,
-      contextFiles: runContextFilesRef.current,
-      toolCalls: runToolCallCountRef.current,
-      fileWrites: runFileWriteCountRef.current,
-      unresolvedMentions: runUnresolvedMentionsRef.current,
-      yoloMode: runYoloModeRef.current,
-    }))
-
-    addEvent({
-      agentId,
-      agentName: chatSession?.label ?? 'Chat',
-      type: 'status_change',
-      description: `Reward ${reward.rewardScore} (${status})`,
+      rewardScore,
     })
-    logRendererEvent('info', 'chat.reward.recorded', {
-      chatSessionId,
-      workspaceDirectory,
-      status,
-      rewardScore: reward.rewardScore,
-      tokenDeltaInput,
-      tokenDeltaOutput,
-      contextFiles: runContextFilesRef.current,
-      toolCalls: runToolCallCountRef.current,
-      fileWrites: runFileWriteCountRef.current,
-      unresolvedMentions: runUnresolvedMentionsRef.current,
-      yoloMode: runYoloModeRef.current,
-    })
-  }, [addEvent, addReward, chatSession?.label, chatSessionId])
+  }, [addEvent, addReward, chatSession?.label, chatSessionId, workingDir])
 
   // Keep chat session directory synced to workspace until the first message.
   // User-picked custom dirs are never overwritten by sidebar folder changes.
@@ -618,6 +637,15 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         case 'tool_use': {
           const data = event.data as { id: string; name: string; input: Record<string, unknown> }
           runToolCallCountRef.current += 1
+          void emitPluginHook('before_tool_call', {
+            chatSessionId,
+            workspaceDirectory: activeRunDirectoryRef.current ?? workingDir ?? null,
+            agentId,
+            timestamp: Date.now(),
+            toolName: data.name,
+            toolUseId: data.id,
+            toolInput: data.input,
+          })
           setMessages((prev) => [
             ...prev.filter((m) => m.role !== 'thinking'),
             {
@@ -695,6 +723,15 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
         case 'tool_result': {
           const data = event.data as { tool_use_id: string; content: string; is_error?: boolean }
+          void emitPluginHook('after_tool_call', {
+            chatSessionId,
+            workspaceDirectory: activeRunDirectoryRef.current ?? workingDir ?? null,
+            agentId,
+            timestamp: Date.now(),
+            toolUseId: data.tool_use_id,
+            isError: data.is_error === true,
+            contentPreview: truncateForHook(data.content, 240),
+          })
           setMessages((prev) => [
             ...prev,
             {
@@ -741,12 +778,32 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             if (lastAssistant?.content) {
               // Schedule persist outside React's batch update
               const activeRunDir = activeRunDirectoryRef.current
-              queueMicrotask(() => persistMessage(lastAssistant.content, 'assistant', { directory: activeRunDir }))
+              queueMicrotask(() => {
+                persistMessage(lastAssistant.content, 'assistant', { directory: activeRunDir })
+                void emitPluginHook('message_sent', {
+                  chatSessionId,
+                  workspaceDirectory: activeRunDir ?? workingDir ?? null,
+                  agentId,
+                  timestamp: Date.now(),
+                  role: 'assistant',
+                  message: truncateForHook(lastAssistant.content),
+                  messageLength: lastAssistant.content.length,
+                })
+              })
             }
             return prev
           })
 
           if (data.is_error && data.error) {
+            void emitPluginHook('message_sent', {
+              chatSessionId,
+              workspaceDirectory: activeRunDirectoryRef.current ?? workingDir ?? null,
+              agentId,
+              timestamp: Date.now(),
+              role: 'error',
+              message: truncateForHook(data.error),
+              messageLength: data.error.length,
+            })
             setMessages((prev) => [
               ...prev,
               {
@@ -781,6 +838,15 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
         case 'error': {
           const data = event.data as { message: string }
+          void emitPluginHook('message_sent', {
+            chatSessionId,
+            workspaceDirectory: activeRunDirectoryRef.current ?? workingDir ?? null,
+            agentId,
+            timestamp: Date.now(),
+            role: 'error',
+            message: truncateForHook(data.message),
+            messageLength: data.message.length,
+          })
           setMessages((prev) => [
             ...prev.filter((m) => m.role !== 'thinking'),
             {
@@ -995,6 +1061,17 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         prompt = `${prompt}\n\n${buildWorkspaceContextPrompt(workspaceSnapshot)}`
       }
 
+      void emitPluginHook('message_received', {
+        chatSessionId,
+        workspaceDirectory: effectiveWorkingDir,
+        agentId: agentIdRef.current,
+        timestamp: Date.now(),
+        message: truncateForHook(message),
+        messageLength: message.length,
+        mentionCount: mentionTokens.length,
+        attachmentCount: files?.length ?? 0,
+      })
+
       // Add user message to chat
       setMessages((prev) => [
         ...prev,
@@ -1031,6 +1108,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         gitBranch: workspaceSnapshot?.gitBranch ?? null,
         gitDirtyFiles: workspaceSnapshot?.gitDirtyFiles ?? 0,
       })
+      const profileForRun = resolveClaudeProfile(claudeProfilesConfig, effectiveWorkingDir)
 
       // Reuse existing agent for this chat, or spawn one on first message
       let agentId = agentIdRef.current
@@ -1101,6 +1179,16 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         output: currentAgent?.tokens_output ?? 0,
       }
       runModelBaselineRef.current = cloneTokensByModel(currentAgent?.sessionStats.tokensByModel ?? {})
+      void emitPluginHook('session_start', {
+        chatSessionId,
+        workspaceDirectory: effectiveWorkingDir,
+        agentId,
+        timestamp: Date.now(),
+        promptPreview: truncateForHook(message, 240),
+        yoloMode,
+        profileId: profileForRun.profile.id,
+        profileSource: profileForRun.source,
+      })
 
       try {
         const result = await window.electronAPI.claude.start({

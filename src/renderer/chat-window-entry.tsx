@@ -2,6 +2,7 @@ import './app.css'
 import { createRoot } from 'react-dom/client'
 import { ChatPanel } from './components/chat/ChatPanel'
 import { setupGlobalRendererDiagnostics } from './lib/diagnostics'
+import { initializePluginRuntime } from './plugins/runtime'
 
 /**
  * Lightweight entry point for popped-out chat windows.
@@ -19,6 +20,7 @@ export function ChatWindowApp() {
 }
 
 setupGlobalRendererDiagnostics('chat-popout')
+initializePluginRuntime()
 
 const root = document.getElementById('root')!
 createRoot(root).render(<ChatWindowApp />)
