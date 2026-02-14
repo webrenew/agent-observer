@@ -65,6 +65,10 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
       })
       mainWindow = await reopenedWindow
       await mainWindow.waitForLoadState('domcontentloaded')
+      const reopenFinishOnboardingButton = mainWindow.getByRole('button', { name: 'Finish setup' })
+      if (await reopenFinishOnboardingButton.count()) {
+        await reopenFinishOnboardingButton.first().click()
+      }
       await expect(mainWindow.locator('.slot-tab', { hasText: 'CHAT' }).first()).toBeVisible()
     }
 

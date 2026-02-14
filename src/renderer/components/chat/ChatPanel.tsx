@@ -64,6 +64,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const [fallbackWorkingDir, setFallbackWorkingDir] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const agentIdRef = useRef<string | null>(null)
+  const activeRunDirectoryRef = useRef<string | null>(null)
   const subagentSeatCounter = useRef(0)
   const activeSubagents = useRef<Map<string, string>>(new Map()) // toolUseId → subagentId
 
@@ -91,6 +92,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const workingDir = chatSession ? chatSession.workingDirectory : fallbackWorkingDir
   const isDirectoryCustom = chatSession ? chatSession.directoryMode === 'custom' : false
   const hasStartedConversation = Boolean(chatSession?.agentId)
+  const isRunActive = status === 'running' || Boolean(claudeSessionId)
 
   // Derive scope from working directory
   const currentScope = workingDir ? matchScope(workingDir, scopes) : null
@@ -107,6 +109,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     document.addEventListener('mousedown', onDocMouseDown)
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [showRecentMenu])
+
+  useEffect(() => {
+    if (isRunActive) {
+      setShowRecentMenu(false)
+    }
+  }, [isRunActive])
 
   // Load chat history from memories on mount / scope change
   useEffect(() => {
@@ -201,6 +209,13 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   }, [chatSession, chatSessionId, updateChatSession, workspaceRoot])
 
   const handleChangeWorkingDir = useCallback(async () => {
+    if (isRunActive) {
+      addToast({
+        type: 'info',
+        message: 'Stop the current run before changing chat folder scope.',
+      })
+      return
+    }
     try {
       const selected = await window.electronAPI.fs.openFolderDialog()
       if (!selected) return
@@ -208,9 +223,16 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     } catch (err) {
       console.error('[ChatPanel] Failed to change working directory:', err)
     }
-  }, [applyDirectorySelection])
+  }, [addToast, applyDirectorySelection, isRunActive])
 
   const handleSyncToWorkspace = useCallback(() => {
+    if (isRunActive) {
+      addToast({
+        type: 'info',
+        message: 'Stop the current run before changing chat folder scope.',
+      })
+      return
+    }
     if (chatSession) {
       updateChatSession(chatSessionId, {
         workingDirectory: workspaceRoot ?? null,
@@ -219,10 +241,18 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       return
     }
     setFallbackWorkingDir(workspaceRoot ?? null)
-  }, [chatSession, chatSessionId, updateChatSession, workspaceRoot])
+  }, [addToast, chatSession, chatSessionId, isRunActive, updateChatSession, workspaceRoot])
 
   const handleSelectRecentDirectory = useCallback(
     (path: string) => {
+      if (isRunActive) {
+        addToast({
+          type: 'info',
+          message: 'Stop the current run before changing chat folder scope.',
+        })
+        setShowRecentMenu(false)
+        return
+      }
       if (path === workspaceRoot) {
         handleSyncToWorkspace()
       } else {
@@ -230,7 +260,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       }
       setShowRecentMenu(false)
     },
-    [applyDirectorySelection, handleSyncToWorkspace, workspaceRoot]
+    [addToast, applyDirectorySelection, handleSyncToWorkspace, isRunActive, workspaceRoot]
   )
 
   // Auto-scroll to bottom on new messages
@@ -427,7 +457,8 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             const lastAssistant = assistantMessages[assistantMessages.length - 1]
             if (lastAssistant?.content) {
               // Schedule persist outside React's batch update
-              queueMicrotask(() => persistMessage(lastAssistant.content, 'assistant'))
+              const activeRunDir = activeRunDirectoryRef.current
+              queueMicrotask(() => persistMessage(lastAssistant.content, 'assistant', { directory: activeRunDir }))
             }
             return prev
           })
@@ -463,6 +494,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           }
 
           setClaudeSessionId(null)
+          activeRunDirectoryRef.current = null
           break
         }
 
@@ -483,6 +515,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             updateAgent(agentId, { status: 'error', isClaudeRunning: false })
           }
           setClaudeSessionId(null)
+          activeRunDirectoryRef.current = null
           break
         }
       }
@@ -562,6 +595,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       persistMessage(message, 'user', { directory: effectiveWorkingDir })
 
       setStatus('running')
+      activeRunDirectoryRef.current = effectiveWorkingDir
 
       // Reuse existing agent for this chat, or spawn one on first message
       let agentId = agentIdRef.current
@@ -646,6 +680,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           },
         ])
         setStatus('error')
+        activeRunDirectoryRef.current = null
         updateAgent(agentId, { status: 'error', isClaudeRunning: false })
       }
     },
@@ -675,13 +710,14 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     }
     setStatus('done')
     setClaudeSessionId(null)
+    activeRunDirectoryRef.current = null
 
     if (agentIdRef.current) {
       updateAgent(agentIdRef.current, { status: 'done', isClaudeRunning: false })
     }
   }, [claudeSessionId, updateAgent])
 
-  const isRunning = status === 'running'
+  const isRunning = isRunActive
 
   // ── Resizable input area ─────────────────────────────────────────
   const [inputHeight, setInputHeight] = useState(100)
@@ -785,9 +821,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           <button
             onClick={handleSyncToWorkspace}
             title={workspaceRoot ? `Sync to ${workspaceRoot}` : 'Clear workspace directory'}
+            disabled={isRunActive}
             style={{
               background: 'transparent', border: 'none', color: '#548C5A',
-              cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, padding: '0 4px',
+              cursor: isRunActive ? 'default' : 'pointer',
+              opacity: isRunActive ? 0.45 : 1,
+              fontFamily: 'inherit', fontSize: 10, padding: '0 4px',
             }}
           >
             sync
@@ -797,12 +836,20 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           <button
             onClick={() => setShowRecentMenu((prev) => !prev)}
             title={recentDirectoryOptions.length > 0 ? 'Switch chat scope from recent folders' : 'No recent folders'}
-            disabled={recentDirectoryOptions.length === 0 && !workspaceRoot}
+            disabled={isRunActive || (recentDirectoryOptions.length === 0 && !workspaceRoot)}
             style={{
               background: 'transparent',
               border: 'none',
-              color: recentDirectoryOptions.length > 0 || workspaceRoot ? '#595653' : '#3f3e3c',
-              cursor: recentDirectoryOptions.length > 0 || workspaceRoot ? 'pointer' : 'default',
+              color: isRunActive
+                ? '#3f3e3c'
+                : recentDirectoryOptions.length > 0 || workspaceRoot
+                  ? '#595653'
+                  : '#3f3e3c',
+              cursor: isRunActive
+                ? 'default'
+                : recentDirectoryOptions.length > 0 || workspaceRoot
+                  ? 'pointer'
+                  : 'default',
               fontFamily: 'inherit',
               fontSize: 11,
               padding: '0 4px',
@@ -893,9 +940,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         <button
           onClick={() => void handleChangeWorkingDir()}
           title="Pick folder for this chat"
+          disabled={isRunActive}
           style={{
             background: 'transparent', border: 'none', color: '#595653',
-            cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, padding: '0 4px',
+            cursor: isRunActive ? 'default' : 'pointer',
+            opacity: isRunActive ? 0.45 : 1,
+            fontFamily: 'inherit', fontSize: 11, padding: '0 4px',
           }}
         >
           pick
