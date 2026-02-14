@@ -45,6 +45,7 @@ export function FileSearchPanel({ onOpenFile }: Props) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchRequestRef = useRef(0)
 
   // Focus input on mount and when panel receives focus
   useEffect(() => {
@@ -57,7 +58,20 @@ export function FileSearchPanel({ onOpenFile }: Props) {
     return () => window.removeEventListener('hotkey:focusSearch', handler)
   }, [])
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    searchRequestRef.current += 1
+    setResults([])
+    setSelectedIndex(0)
+  }, [rootDir])
+
   const doSearch = useCallback(async (searchQuery: string) => {
+    const requestId = ++searchRequestRef.current
     if (!searchQuery.trim() || !rootDir) {
       setResults([])
       setIsSearching(false)
@@ -67,12 +81,15 @@ export function FileSearchPanel({ onOpenFile }: Props) {
     setIsSearching(true)
     try {
       const hits = await window.electronAPI.fs.search(rootDir, searchQuery.trim(), 50)
+      if (requestId !== searchRequestRef.current) return
       setResults(hits)
       setSelectedIndex(0)
     } catch (err) {
+      if (requestId !== searchRequestRef.current) return
       console.error('[FileSearch] search error:', err)
       setResults([])
     } finally {
+      if (requestId !== searchRequestRef.current) return
       setIsSearching(false)
     }
   }, [rootDir])
@@ -80,9 +97,16 @@ export function FileSearchPanel({ onOpenFile }: Props) {
   const handleInputChange = useCallback((value: string) => {
     setQuery(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!value.trim()) {
+      searchRequestRef.current += 1
+      setResults([])
+      setIsSearching(false)
+      setSelectedIndex(0)
+      return
+    }
     debounceRef.current = setTimeout(() => {
       void doSearch(value)
-    }, 200)
+    }, 120)
   }, [doSearch])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -121,7 +145,7 @@ export function FileSearchPanel({ onOpenFile }: Props) {
           value={query}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search files..."
+          placeholder="Search files (name or path, e.g. src/chat)..."
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
             color: '#9A9692', fontSize: 'inherit', fontFamily: 'inherit',

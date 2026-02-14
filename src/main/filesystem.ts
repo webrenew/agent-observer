@@ -21,6 +21,30 @@ interface SearchResult {
   isDirectory: boolean
 }
 
+interface IndexedSearchFile extends SearchResult {
+  relPath: string
+  relPathLower: string
+  nameLower: string
+  stemLower: string
+  extLower: string
+  depth: number
+}
+
+interface ParsedSearchQuery {
+  normalized: string
+  normalizedPath: string
+  tokens: string[]
+  pathTokens: string[]
+  extHint: string
+  hasPathHint: boolean
+}
+
+interface SearchIndexCacheEntry {
+  files: IndexedSearchFile[]
+  builtAt: number
+  buildPromise?: Promise<IndexedSearchFile[]>
+}
+
 // ── Ignored patterns ─────────────────────────────────────────────────
 
 const IGNORED_DIRS = new Set([
@@ -32,6 +56,15 @@ const IGNORED_DIRS = new Set([
 ])
 
 const IGNORED_FILES = new Set(['.DS_Store', 'Thumbs.db', 'desktop.ini'])
+
+const SEARCH_INDEX_TTL_MS = 15_000
+const SEARCH_INDEX_MAX_FILES = 200_000
+const SEARCH_INDEX_MAX_RESULTS = 200
+const SEARCH_WORD_BOUNDARIES = '/._- '
+const RG_MAX_BUFFER = 32 * 1024 * 1024
+const FIND_MAX_BUFFER = 32 * 1024 * 1024
+
+const searchIndexCache = new Map<string, SearchIndexCacheEntry>()
 
 function shouldIgnore(name: string, isDir: boolean): boolean {
   if (isDir) return IGNORED_DIRS.has(name)
@@ -101,69 +134,301 @@ async function readFileContent(filePath: string): Promise<{ content: string; tru
 
 async function searchFiles(rootDir: string, query: string, maxResults: number): Promise<SearchResult[]> {
   const resolved = path.resolve(rootDir)
+  const parsedQuery = parseSearchQuery(query)
+  if (!parsedQuery.normalized) return []
 
-  // Try using `find` for speed, fall back to manual walk
-  return new Promise((resolve) => {
-    const args = [resolved, '-type', 'f', '-not', '-path', '*/node_modules/*',
-      '-not', '-path', '*/.git/*', '-not', '-path', '*/dist/*',
-      '-not', '-path', '*/.next/*', '-not', '-path', '*/out/*',
-      '-not', '-path', '*/build/*', '-not', '-path', '*/release/*',
-      '-not', '-path', '*/.cache/*',
-    ]
+  const limit = clampSearchResultLimit(maxResults)
+  const indexedFiles = await getCachedSearchIndex(resolved)
+  const scoredMatches: Array<{ file: IndexedSearchFile; score: number }> = []
 
-    execFile('find', args, { maxBuffer: 5 * 1024 * 1024, timeout: 5000 }, (err, stdout) => {
+  for (const file of indexedFiles) {
+    const score = scoreSearchCandidate(file, parsedQuery)
+    if (score <= 0) continue
+    scoredMatches.push({ file, score })
+  }
+
+  scoredMatches.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.file.relPathLower.localeCompare(b.file.relPathLower)
+  })
+
+  return scoredMatches.slice(0, limit).map(({ file }) => ({
+    path: file.path,
+    name: file.name,
+    isDirectory: false,
+  }))
+}
+
+function clampSearchResultLimit(limit: number): number {
+  if (!Number.isFinite(limit) || limit <= 0) return 50
+  return Math.min(Math.floor(limit), SEARCH_INDEX_MAX_RESULTS)
+}
+
+function parseSearchQuery(query: string): ParsedSearchQuery {
+  const normalizedPath = query
+    .trim()
+    .toLowerCase()
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+
+  const normalized = normalizedPath.replace(/\s+/g, ' ').trim()
+  const tokens = normalizedPath.split(/[\/\s]+/).filter(Boolean)
+  const pathTokens = normalizedPath.includes('/')
+    ? normalizedPath.split('/').filter(Boolean)
+    : tokens
+  const extHintMatch = normalizedPath.match(/\.([a-z0-9_+-]+)$/)
+
+  return {
+    normalized,
+    normalizedPath,
+    tokens,
+    pathTokens,
+    extHint: extHintMatch?.[1] ?? '',
+    hasPathHint: normalizedPath.includes('/'),
+  }
+}
+
+function isSearchBoundary(char: string | undefined): boolean {
+  if (!char) return true
+  return SEARCH_WORD_BOUNDARIES.includes(char)
+}
+
+function fuzzySubsequenceScore(query: string, text: string): number {
+  if (!query || !text) return 0
+
+  let q = 0
+  let score = 0
+  let firstMatch = -1
+  let lastMatch = -2
+
+  for (let i = 0; i < text.length && q < query.length; i++) {
+    if (text[i] !== query[q]) continue
+
+    if (firstMatch === -1) firstMatch = i
+
+    score += 8
+    if (lastMatch === i - 1) score += 12
+    if (isSearchBoundary(text[i - 1])) score += 10
+    if (i === 0) score += 6
+
+    lastMatch = i
+    q++
+  }
+
+  if (q !== query.length) return 0
+  if (firstMatch >= 0) score += Math.max(0, 24 - firstMatch)
+  return score
+}
+
+function scoreSearchCandidate(file: IndexedSearchFile, query: ParsedSearchQuery): number {
+  const { normalized, normalizedPath, tokens, pathTokens, extHint, hasPathHint } = query
+  const { nameLower, relPathLower, stemLower, extLower } = file
+
+  let score = 0
+
+  if (nameLower === normalized) score += 2400
+  if (stemLower === normalized) score += 2200
+  if (nameLower.startsWith(normalized)) score += 1500
+
+  const fullNameIndex = nameLower.indexOf(normalized)
+  if (fullNameIndex >= 0) score += 1100 - Math.min(550, fullNameIndex * 22)
+
+  const fullPathIndex = relPathLower.indexOf(normalizedPath)
+  if (fullPathIndex >= 0) score += 850 - Math.min(400, fullPathIndex * 8)
+
+  if (hasPathHint) {
+    let cursor = 0
+    for (const token of pathTokens) {
+      const tokenIndex = relPathLower.indexOf(token, cursor)
+      if (tokenIndex < 0) return 0
+      score += 140 - Math.min(100, tokenIndex - cursor)
+      cursor = tokenIndex + token.length
+    }
+    score += 220
+  }
+
+  for (const token of tokens) {
+    const tokenInName = nameLower.indexOf(token)
+    const tokenInPath = relPathLower.indexOf(token)
+
+    if (tokenInName < 0 && tokenInPath < 0) return 0
+
+    if (tokenInName >= 0) {
+      score += 200 - Math.min(130, tokenInName * 6)
+      if (tokenInName === 0) score += 80
+    } else {
+      score += 110 - Math.min(80, tokenInPath * 2)
+    }
+  }
+
+  const fuzzyName = fuzzySubsequenceScore(normalized, nameLower)
+  const fuzzyPath = fuzzySubsequenceScore(normalizedPath, relPathLower)
+  if (fuzzyName <= 0 && fuzzyPath <= 0) return 0
+
+  score += fuzzyName * 4
+  score += fuzzyPath * 2
+
+  if (extHint && extLower === extHint) score += 160
+
+  score -= file.depth * 5
+  score -= Math.max(0, nameLower.length - normalized.length) * 2
+
+  return score > 0 ? score : 0
+}
+
+async function getCachedSearchIndex(rootDir: string): Promise<IndexedSearchFile[]> {
+  const cached = searchIndexCache.get(rootDir)
+  const now = Date.now()
+
+  if (cached?.buildPromise) return cached.buildPromise
+  if (cached && now - cached.builtAt < SEARCH_INDEX_TTL_MS) {
+    return cached.files
+  }
+
+  const buildPromise = buildSearchIndex(rootDir)
+    .then((files) => {
+      searchIndexCache.set(rootDir, { files, builtAt: Date.now() })
+      return files
+    })
+    .catch((err) => {
+      if (cached) {
+        searchIndexCache.set(rootDir, cached)
+      } else {
+        searchIndexCache.delete(rootDir)
+      }
+      throw err
+    })
+
+  searchIndexCache.set(rootDir, {
+    files: cached?.files ?? [],
+    builtAt: cached?.builtAt ?? 0,
+    buildPromise,
+  })
+
+  return buildPromise
+}
+
+async function buildSearchIndex(rootDir: string): Promise<IndexedSearchFile[]> {
+  const relPaths = await listSearchablePaths(rootDir)
+  const seen = new Set<string>()
+  const files: IndexedSearchFile[] = []
+
+  for (const relPathRaw of relPaths) {
+    const relPath = normalizeRelativeSearchPath(relPathRaw)
+    if (!relPath || seen.has(relPath) || shouldIgnoreInSearch(relPath)) continue
+    seen.add(relPath)
+
+    const name = path.posix.basename(relPath)
+    const nameLower = name.toLowerCase()
+    const extLower = path.posix.extname(name).slice(1).toLowerCase()
+    const stemLower = extLower ? nameLower.slice(0, -(extLower.length + 1)) : nameLower
+    const depth = Math.max(0, relPath.split('/').length - 1)
+    const absPath = path.join(rootDir, relPath)
+
+    files.push({
+      path: absPath,
+      name,
+      isDirectory: false,
+      relPath,
+      relPathLower: relPath.toLowerCase(),
+      nameLower,
+      stemLower,
+      extLower,
+      depth,
+    })
+
+    if (files.length >= SEARCH_INDEX_MAX_FILES) break
+  }
+
+  return files
+}
+
+function normalizeRelativeSearchPath(rawPath: string): string {
+  const trimmed = rawPath.trim()
+  if (!trimmed) return ''
+  return trimmed.replace(/\\/g, '/').replace(/^\.\//, '')
+}
+
+function shouldIgnoreInSearch(relPath: string): boolean {
+  const segments = relPath.split('/').filter(Boolean)
+  if (segments.length === 0) return true
+
+  const lastIndex = segments.length - 1
+  for (let i = 0; i < lastIndex; i++) {
+    if (IGNORED_DIRS.has(segments[i])) return true
+  }
+  return IGNORED_FILES.has(segments[lastIndex])
+}
+
+function isPathInsideRoot(rootDir: string, targetPath: string): boolean {
+  const rel = path.relative(rootDir, targetPath)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
+function invalidateSearchIndexForPath(targetPath: string): void {
+  const resolvedTarget = path.resolve(targetPath)
+  for (const rootDir of searchIndexCache.keys()) {
+    if (isPathInsideRoot(rootDir, resolvedTarget)) {
+      searchIndexCache.delete(rootDir)
+    }
+  }
+}
+
+async function listSearchablePaths(rootDir: string): Promise<string[]> {
+  try {
+    return await listPathsWithRipgrep(rootDir)
+  } catch (err) {
+    console.warn('[filesystem] rg --files failed, falling back to find:', err)
+    return await listPathsWithFind(rootDir)
+  }
+}
+
+function listPathsWithRipgrep(rootDir: string): Promise<string[]> {
+  const args = ['--files', '--hidden']
+  for (const dir of IGNORED_DIRS) {
+    args.push('--glob', `!**/${dir}/**`)
+  }
+  for (const file of IGNORED_FILES) {
+    args.push('--glob', `!**/${file}`)
+  }
+
+  return new Promise((resolve, reject) => {
+    execFile('rg', args, { cwd: rootDir, maxBuffer: RG_MAX_BUFFER, timeout: 8000 }, (err, stdout, stderr) => {
       if (err) {
-        // Fallback: return empty on error
-        console.error('[filesystem] find command failed:', err.message)
-        resolve([])
+        reject(new Error(`${err.message}${stderr ? ` (${stderr.trim()})` : ''}`))
         return
       }
-
-      const lowerQuery = query.toLowerCase()
-      const lines = stdout.split('\n').filter(Boolean)
-      const matches: Array<{ path: string; name: string; isDirectory: boolean; score: number }> = []
-
-      for (const line of lines) {
-        const name = path.basename(line)
-        const relPath = path.relative(resolved, line)
-        const score = fuzzyScore(name.toLowerCase(), relPath.toLowerCase(), lowerQuery)
-        if (score > 0) {
-          matches.push({ path: line, name, isDirectory: false, score })
-        }
-      }
-
-      matches.sort((a, b) => b.score - a.score)
-      resolve(matches.slice(0, maxResults).map(({ path: p, name, isDirectory }) => ({
-        path: p, name, isDirectory,
-      })))
+      resolve(stdout.split('\n').map((line) => line.trim()).filter(Boolean))
     })
   })
 }
 
-/** Simple fuzzy scoring: exact filename match > filename contains > path contains */
-function fuzzyScore(nameLower: string, relPathLower: string, queryLower: string): number {
-  if (nameLower === queryLower) return 100
-  if (nameLower.startsWith(queryLower)) return 80
-  if (nameLower.includes(queryLower)) return 60
-
-  // Check if all chars appear in order (fuzzy match on filename)
-  let qi = 0
-  for (let i = 0; i < nameLower.length && qi < queryLower.length; i++) {
-    if (nameLower[i] === queryLower[qi]) qi++
+function listPathsWithFind(rootDir: string): Promise<string[]> {
+  const args = [rootDir, '-type', 'f']
+  for (const dir of IGNORED_DIRS) {
+    args.push('-not', '-path', `*/${dir}/*`)
   }
-  if (qi === queryLower.length) return 40
-
-  // Check path
-  if (relPathLower.includes(queryLower)) return 20
-
-  // Fuzzy on full path
-  qi = 0
-  for (let i = 0; i < relPathLower.length && qi < queryLower.length; i++) {
-    if (relPathLower[i] === queryLower[qi]) qi++
+  for (const file of IGNORED_FILES) {
+    args.push('-not', '-name', file)
   }
-  if (qi === queryLower.length) return 10
 
-  return 0
+  return new Promise((resolve, reject) => {
+    execFile('find', args, { maxBuffer: FIND_MAX_BUFFER, timeout: 10_000 }, (err, stdout) => {
+      if (err) {
+        reject(err)
+        return
+      }
+
+      const relPaths = stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((absPath) => normalizeRelativeSearchPath(path.relative(rootDir, absPath)))
+        .filter((relPath) => relPath.length > 0 && !relPath.startsWith('../'))
+
+      resolve(relPaths)
+    })
+  })
 }
 
 // ── Setup IPC handlers ───────────────────────────────────────────────
@@ -251,6 +516,7 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
     try {
       const resolved = path.resolve(filePath)
       await fs.promises.writeFile(resolved, content, 'utf-8')
+      invalidateSearchIndexForPath(resolved)
     } catch (err) {
       console.error('[filesystem] writeFile error:', err)
       throw err
@@ -282,6 +548,8 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
       const dir = path.dirname(resolved)
       const newPath = path.join(dir, newName)
       await fs.promises.rename(resolved, newPath)
+      invalidateSearchIndexForPath(resolved)
+      invalidateSearchIndexForPath(newPath)
       return { newPath }
     } catch (err) {
       console.error('[filesystem] rename error:', err)
@@ -298,6 +566,7 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
       } else {
         await fs.promises.unlink(resolved)
       }
+      invalidateSearchIndexForPath(resolved)
     } catch (err) {
       console.error('[filesystem] delete error:', err)
       throw err
