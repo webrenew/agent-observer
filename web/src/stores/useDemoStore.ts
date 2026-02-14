@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Agent, AgentStatus } from '@/types'
+import type { Agent } from '@/types'
 import { randomAppearance } from '@/types'
 
 interface Toast {

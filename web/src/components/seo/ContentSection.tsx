@@ -1,121 +1,219 @@
 const FEATURES = [
   {
     id: "dispatcher",
-    icon: "📡",
+    icon: "01",
     name: "The Dispatcher",
     role: "Operations Lead",
-    color: "#FF6B35",
-    text: "Welcome to Agent Space! I keep track of every agent running across your tools — Cursor, Claude Code, custom scripts — all of them, in one place.",
-    cta: { label: "See how it works →", href: "/docs/overview" },
+    color: "#548C5A",
+    text: "Track every agent running across Cursor, Claude Code, and custom scripts in one mission console.",
+    cta: { label: "See workflow", href: "/docs/overview" },
   },
   {
     id: "watcher",
-    icon: "👁️",
+    icon: "02",
     name: "The Watcher",
     role: "Observability Engineer",
-    color: "#4ECDC4",
-    text: "I monitor everything in real-time. Token usage, error rates, task duration — all streaming live to these screens.",
-    cta: { label: "Explore monitoring →", href: "/docs/monitoring" },
+    color: "#d4a040",
+    text: "Inspect live token usage, error spikes, and task state changes without context switching.",
+    cta: { label: "Explore monitoring", href: "/docs/monitoring" },
   },
   {
     id: "builder",
-    icon: "🔧",
+    icon: "03",
     name: "The Builder",
     role: "Developer Advocate",
-    color: "#45B7D1",
-    text: "Getting started? It's just an npm install and a few lines of config. I integrate with any agent framework.",
-    cta: { label: "Quick start guide →", href: "/docs/quickstart" },
+    color: "#9A9692",
+    text: "Install quickly, connect existing workflows, and turn every local run into visible team activity.",
+    cta: { label: "Quick start", href: "/docs/quickstart" },
   },
   {
     id: "librarian",
-    icon: "📚",
+    icon: "04",
     name: "The Librarian",
     role: "Knowledge Architect",
-    color: "#96CEB4",
-    text: "Every agent interaction generates context. I make sure nothing gets lost — memories, decisions, outputs, all indexed and searchable.",
-    cta: { label: "Learn about memory →", href: "/docs/memory" },
+    color: "#74747C",
+    text: "Preserve context from agent work so decisions, outputs, and breadcrumbs remain searchable.",
+    cta: { label: "Memory model", href: "/docs/memory" },
   },
   {
     id: "messenger",
-    icon: "📬",
+    icon: "05",
     name: "The Messenger",
     role: "Integration Specialist",
-    color: "#FFEAA7",
-    text: "I handle all the notifications. Slack, Discord, webhooks — when something important happens, the right people know instantly.",
-    cta: { label: "Set up integrations →", href: "/docs/integrations" },
+    color: "#c87830",
+    text: "Push high-signal updates to Slack, Discord, and webhooks when meaningful events happen.",
+    cta: { label: "Integrations", href: "/docs/integrations" },
   },
   {
     id: "architect",
-    icon: "🏗️",
+    icon: "06",
     name: "The Architect",
     role: "System Designer",
-    color: "#DDA0DD",
-    text: "I designed this whole system. Agent Space sits between your agents and your team — a lightweight observation layer with zero performance overhead.",
-    cta: { label: "View architecture →", href: "/docs/architecture" },
+    color: "#c45050",
+    text: "Add an observability layer with low overhead while keeping your current dev environment intact.",
+    cta: { label: "Architecture", href: "/docs/architecture" },
   },
 ];
 
 export function ContentSection() {
   return (
-    <section id="features" className="bg-[#0a0a0a] px-6 py-24 text-white">
+    <section id="features" className="bg-[#0e0e0d] px-4 py-20 md:px-6 md:py-24">
       <div className="mx-auto max-w-6xl">
-        {/* Hero text */}
-        <div className="mb-20 text-center">
-          <h1 className="mb-4 text-4xl font-bold md:text-5xl">
-            <span className="text-[#4ECDC4]">Agent Space</span> — Mission
-            Control for Your AI Agents
-          </h1>
-          <p className="mx-auto max-w-2xl text-lg text-white/60">
-            Observe, debug, and manage every AI agent across your tools.
-            Real-time dashboards, traces, and alerts — all in one place.
+        <div
+          className="glass-panel"
+          style={{
+            borderRadius: 12,
+            padding: "18px 18px 16px",
+            border: "1px solid rgba(89,86,83,0.25)",
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16, letterSpacing: 1 }}>⬢</span>
+              <span
+                style={{
+                  color: "#74747C",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                }}
+              >
+                Product Overview
+              </span>
+            </div>
+            <a
+              href="/docs/quickstart"
+              className="nav-item"
+              style={{ color: "#548C5A", fontSize: 12, fontWeight: 600 }}
+            >
+              Open docs →
+            </a>
+          </div>
+
+          <h2
+            style={{
+              color: "#9A9692",
+              fontSize: "clamp(24px, 4.4vw, 42px)",
+              lineHeight: 1.15,
+              margin: "14px 0 10px",
+              letterSpacing: -0.5,
+            }}
+          >
+            Agent Space mirrors the desktop mission-control UI on the web.
+          </h2>
+          <p
+            style={{
+              margin: 0,
+              color: "#74747C",
+              fontSize: "clamp(13px, 1.8vw, 16px)",
+              maxWidth: 820,
+            }}
+          >
+            Same status language, same control surfaces, same visual system. Run
+            the web experience and desktop app side-by-side without mental
+            remapping.
           </p>
         </div>
 
-        {/* Feature grid */}
-        <div className="mb-20 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((feature) => (
-            <div
+            <article
               key={feature.id}
-              className="group rounded-xl border border-white/5 bg-white/[0.02] p-6 transition hover:border-white/10 hover:bg-white/[0.04]"
+              className="glass-panel hover-row"
+              style={{
+                borderRadius: 10,
+                border: "1px solid rgba(89,86,83,0.24)",
+                padding: "12px 12px 10px",
+              }}
             >
-              <div className="mb-4 flex items-center gap-3">
-                <span className="text-2xl">{feature.icon}</span>
-                <div
-                  className="h-1 w-8 rounded-full"
-                  style={{ backgroundColor: feature.color }}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    minWidth: 24,
+                    height: 18,
+                    borderRadius: 4,
+                    border: `1px solid ${feature.color}66`,
+                    color: feature.color,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 10,
+                    fontWeight: 700,
+                  }}
+                >
+                  {feature.icon}
+                </span>
+                <span
+                  style={{
+                    width: 26,
+                    height: 2,
+                    borderRadius: 2,
+                    background: feature.color,
+                    opacity: 0.8,
+                  }}
                 />
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    color: "#595653",
+                    fontSize: 10,
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {feature.role}
+                </span>
               </div>
-              <h3 className="mb-1 text-lg font-bold">{feature.name}</h3>
-              <p className="mb-2 text-xs font-medium text-white/40">
-                {feature.role}
-              </p>
-              <p className="text-sm leading-relaxed text-white/60">
+              <h3
+                style={{
+                  margin: "0 0 6px",
+                  fontSize: 15,
+                  color: "#9A9692",
+                  fontWeight: 600,
+                }}
+              >
+                {feature.name}
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  color: "#74747C",
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
                 {feature.text}
               </p>
-              {feature.cta && (
-                <a
-                  href={feature.cta.href}
-                  className="mt-4 inline-block text-sm font-medium text-[#4ECDC4] transition hover:text-[#45B7D1]"
-                >
-                  {feature.cta.label}
-                </a>
-              )}
-            </div>
+              <a
+                href={feature.cta.href}
+                className="nav-item"
+                style={{
+                  color: feature.color,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {feature.cta.label} →
+              </a>
+            </article>
           ))}
-        </div>
-
-        {/* CTA */}
-        <div className="text-center">
-          <a
-            href="/docs/quickstart"
-            className="inline-block rounded-lg bg-[#4ECDC4] px-8 py-4 text-lg font-bold text-black transition hover:bg-[#45B7D1]"
-          >
-            Get Started
-          </a>
-          <p className="mt-4 text-sm text-white/40">
-            Open source core &bull; Cloud dashboard optional &bull; 5 minutes to
-            setup
-          </p>
         </div>
       </div>
     </section>

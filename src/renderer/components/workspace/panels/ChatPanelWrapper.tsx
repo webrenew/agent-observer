@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useAgentStore, type ChatSessionInfo } from '../../../store/agents'
+import { useWorkspaceStore } from '../../../store/workspace'
 import { ChatPanel } from '../../chat/ChatPanel'
 
 let chatSessionCounter = 0
@@ -15,6 +16,7 @@ export function ChatPanelWrapper() {
   const addChatSession = useAgentStore((s) => s.addChatSession)
   const removeChatSession = useAgentStore((s) => s.removeChatSession)
   const removeAgent = useAgentStore((s) => s.removeAgent)
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
   const autoCreated = useRef(false)
 
   const handleCreateSession = useCallback(() => {
@@ -24,9 +26,11 @@ export function ChatPanelWrapper() {
       label: `Chat ${chatSessionCounter}`,
       agentId: null,
       scopeId: null,
+      workingDirectory: workspaceRoot,
+      directoryMode: 'workspace',
     }
     addChatSession(session)
-  }, [addChatSession])
+  }, [addChatSession, workspaceRoot])
 
   // Auto-create a chat session on mount if none exist
   useEffect(() => {

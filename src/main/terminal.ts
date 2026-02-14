@@ -15,6 +15,8 @@ interface PtySession {
 
 const sessions = new Map<string, PtySession>()
 let idCounter = 0
+let mainWindow: BrowserWindow | null = null
+let handlersRegistered = false
 
 // Match process names: claude, claude-code, node (claude runs as node)
 const CLAUDE_PROCESS_RE = /\bclaude\b/i
@@ -35,7 +37,17 @@ function getDefaultShell(): string {
   return process.env.SHELL || '/bin/zsh'
 }
 
-export function setupTerminalHandlers(mainWindow: BrowserWindow): void {
+function sendToMainWindow(channel: string, ...args: unknown[]): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send(channel, ...args)
+}
+
+export function setupTerminalHandlers(window: BrowserWindow): void {
+  mainWindow = window
+
+  if (handlersRegistered) return
+  handlersRegistered = true
+
   ipcMain.handle('terminal:create', (_event, options?: { cols?: number; rows?: number }) => {
     const id = `term-${++idCounter}`
     const settings = getSettings()
@@ -71,9 +83,7 @@ export function setupTerminalHandlers(mainWindow: BrowserWindow): void {
 
     // Forward data from PTY to renderer + scan for Claude patterns
     ptyProcess.onData((data: string) => {
-      if (!mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:data', id, data)
-      }
+      sendToMainWindow('terminal:data', id, data)
 
       // Output-based Claude detection (supplements process name polling)
       if (!session.outputClaudeDetected) {
@@ -89,9 +99,7 @@ export function setupTerminalHandlers(mainWindow: BrowserWindow): void {
 
           if (!session.wasClaudeRunning) {
             session.wasClaudeRunning = true
-            if (!mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('terminal:claude-status', id, true)
-            }
+            sendToMainWindow('terminal:claude-status', id, true)
           }
         }
       }
@@ -99,9 +107,7 @@ export function setupTerminalHandlers(mainWindow: BrowserWindow): void {
 
     // Handle PTY exit
     ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-      if (!mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal:exit', id, exitCode, signal)
-      }
+      sendToMainWindow('terminal:exit', id, exitCode, signal)
       if (session.pollTimer) clearInterval(session.pollTimer)
       sessions.delete(id)
     })
@@ -127,9 +133,7 @@ export function setupTerminalHandlers(mainWindow: BrowserWindow): void {
             outputBuffer = ''
           }
 
-          if (!mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('terminal:claude-status', id, isClaudeRunning)
-          }
+          sendToMainWindow('terminal:claude-status', id, isClaudeRunning)
         }
       } catch {
         // Process may have exited between check — ignore

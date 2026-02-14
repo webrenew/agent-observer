@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDemoStore } from "@/stores/useDemoStore";
 import { STATUS_LABELS, AGENT_COLORS } from "@/types";
 import type { AgentStatus } from "@/types";
 import { Minimap } from "./Minimap";
 
-const STATUS_DOT: Record<AgentStatus, string> = {
-  idle: "bg-slate-400",
-  thinking: "bg-yellow-400 animate-pulse",
-  streaming: "bg-green-400 animate-pulse",
-  tool_calling: "bg-violet-400 animate-pulse",
-  waiting: "bg-orange-400",
-  error: "bg-red-500 animate-pulse",
-  done: "bg-cyan-400",
+const STATUS_COLOR: Record<AgentStatus, string> = {
+  idle: "#595653",
+  thinking: "#c87830",
+  streaming: "#d4a040",
+  tool_calling: "#d4a040",
+  waiting: "#74747C",
+  error: "#c45050",
+  done: "#548C5A",
 };
 
 function formatTokens(n: number): string {
@@ -30,40 +30,206 @@ function AgentCard({ agentId }: { agentId: string }) {
   if (!agent) return null;
 
   const isSelected = selectedId === agent.id;
-  const borderColor = AGENT_COLORS[agent.agent_type];
+  const accent = AGENT_COLORS[agent.agent_type];
+  const showPulse =
+    agent.status === "thinking" ||
+    agent.status === "streaming" ||
+    agent.status === "tool_calling";
 
   return (
     <button
       onClick={() => selectAgent(isSelected ? null : agent.id)}
-      className={`w-full rounded-lg border p-3 text-left transition ${
-        isSelected
-          ? "border-white/30 bg-white/10"
-          : "border-white/5 bg-white/[0.03] hover:bg-white/[0.06]"
-      }`}
+      className="hover-row"
+      style={{
+        width: "100%",
+        borderRadius: 8,
+        border: `1px solid ${isSelected ? `${accent}66` : "rgba(89,86,83,0.22)"}`,
+        background: isSelected ? "rgba(89,86,83,0.16)" : "rgba(26,26,25,0.7)",
+        padding: "8px 10px",
+        textAlign: "left",
+        cursor: "pointer",
+        color: "#9A9692",
+      }}
     >
-      <div className="mb-1.5 flex items-center gap-2">
-        <div
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: borderColor }}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 4,
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            backgroundColor: accent,
+            flexShrink: 0,
+          }}
         />
-        <span className="text-xs font-semibold text-white">{agent.name}</span>
-        <span className={`ml-auto h-1.5 w-1.5 rounded-full ${STATUS_DOT[agent.status]}`} />
-        <span className="text-[10px] text-white/50">
-          {STATUS_LABELS[agent.status]}
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#9A9692",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            flex: 1,
+          }}
+        >
+          {agent.name}
         </span>
+        <span
+          className={showPulse ? "pulse-amber" : undefined}
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            backgroundColor: STATUS_COLOR[agent.status],
+            flexShrink: 0,
+          }}
+        />
       </div>
-      <div className="mb-1 truncate text-[11px] text-white/40">
+      <div
+        style={{
+          fontSize: 10,
+          color: "#74747C",
+          marginBottom: 4,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {agent.currentTask}
       </div>
-      <div className="flex gap-3 text-[10px] text-white/30">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 10,
+          color: "#595653",
+        }}
+      >
         <span>{formatTokens(agent.tokens_input)} in</span>
         <span>{formatTokens(agent.tokens_output)} out</span>
         <span>{agent.files_modified} files</span>
-        {agent.commitCount > 0 && (
-          <span className="text-green-400/60">{agent.commitCount} commits</span>
-        )}
+        <span style={{ color: STATUS_COLOR[agent.status], marginLeft: "auto" }}>
+          {STATUS_LABELS[agent.status]}
+        </span>
       </div>
     </button>
+  );
+}
+
+function TopBar({
+  activeCount,
+  totalTokens,
+  agentCount,
+}: {
+  activeCount: number;
+  totalTokens: number;
+  agentCount: number;
+}) {
+  const [timeStr, setTimeStr] = useState(() =>
+    new Date().toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeStr(
+        new Date().toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        })
+      );
+    }, 60_000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <header
+      className="glass-panel"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 40,
+        height: 36,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 16px",
+        borderTop: "none",
+        borderLeft: "none",
+        borderRight: "none",
+        borderBottom: "1px solid rgba(89,86,83,0.22)",
+      }}
+    >
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}
+      >
+        <span style={{ fontSize: 16, letterSpacing: 1 }}>⬢</span>
+        <span style={{ color: "#9A9692", fontSize: 12, fontWeight: 500 }}>
+          Live Demo
+        </span>
+        <span style={{ color: "#595653" }}>|</span>
+        <nav className="hidden items-center gap-14 md:flex">
+          <span className="nav-item" style={{ color: "#74747C", fontSize: 12 }}>
+            File
+          </span>
+          <span className="nav-item" style={{ color: "#74747C", fontSize: 12 }}>
+            Edit
+          </span>
+          <span className="nav-item" style={{ color: "#74747C", fontSize: 12 }}>
+            View
+          </span>
+          <a
+            className="nav-item"
+            href="#features"
+            style={{ color: "#74747C", fontSize: 12 }}
+          >
+            Docs
+          </a>
+        </nav>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          color: "#74747C",
+          fontSize: 12,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span className="glow-amber hidden md:inline" style={{ color: "#9A9692" }}>
+          agent-space
+        </span>
+        <span style={{ color: "#595653" }}>|</span>
+        <span>
+          <strong style={{ color: "#9A9692" }}>{activeCount}</strong>
+          <span style={{ color: "#595653" }}>/{agentCount}</span> active
+        </span>
+        <span style={{ color: "#595653" }}>|</span>
+        <span>
+          <strong style={{ color: "#9A9692" }}>{formatTokens(totalTokens)}</strong>{" "}
+          tokens
+        </span>
+        <span style={{ color: "#595653" }}>|</span>
+        <span style={{ color: "#9A9692" }}>{timeStr}</span>
+      </div>
+    </header>
   );
 }
 
@@ -79,19 +245,41 @@ function ToastStack() {
   }, [toasts, removeToast]);
 
   return (
-    <div className="fixed right-6 bottom-20 z-40 flex flex-col gap-2 md:bottom-32">
+    <div
+      style={{
+        position: "fixed",
+        right: 16,
+        bottom: 16,
+        zIndex: 40,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`animate-in slide-in-from-right rounded-lg border px-3 py-2 text-xs backdrop-blur-sm ${
-            toast.type === "error"
-              ? "border-red-500/30 bg-red-500/10 text-red-300"
-              : toast.type === "success"
-                ? "border-green-500/30 bg-green-500/10 text-green-300"
-                : "border-white/10 bg-white/5 text-white/70"
-          }`}
+          className="glass-panel toast-in"
+          style={{
+            minWidth: 220,
+            borderRadius: 8,
+            padding: "7px 12px",
+            border:
+              toast.type === "error"
+                ? "1px solid rgba(196,80,80,0.4)"
+                : toast.type === "success"
+                  ? "1px solid rgba(84,140,90,0.4)"
+                  : "1px solid rgba(212,160,64,0.4)",
+            color:
+              toast.type === "error"
+                ? "#c45050"
+                : toast.type === "success"
+                  ? "#548C5A"
+                  : "#d4a040",
+            fontSize: 12,
+          }}
         >
-          {toast.message}
+          <span style={{ color: "#9A9692" }}>{toast.message}</span>
         </div>
       ))}
     </div>
@@ -101,63 +289,124 @@ function ToastStack() {
 export function HUD() {
   const agents = useDemoStore((s) => s.agents);
 
-  const totalTokens = agents.reduce(
-    (sum, a) => sum + a.tokens_input + a.tokens_output,
-    0
-  );
-  const activeCount = agents.filter(
-    (a) => a.status !== "idle" && a.status !== "done"
-  ).length;
+  const { activeCount, totalTokens } = useMemo(() => {
+    const active = agents.filter(
+      (a) => a.status !== "idle" && a.status !== "done"
+    ).length;
+    const tokens = agents.reduce(
+      (sum, a) => sum + a.tokens_input + a.tokens_output,
+      0
+    );
+    return { activeCount: active, totalTokens: tokens };
+  }, [agents]);
 
   return (
     <>
-      {/* Logo — top left */}
-      <div className="fixed top-6 left-6 z-30">
-        <div className="text-xl font-bold text-white drop-shadow-lg">
-          <span className="text-[#4ECDC4]">Agent</span> Space
-        </div>
-      </div>
+      <TopBar
+        activeCount={activeCount}
+        totalTokens={totalTokens}
+        agentCount={agents.length}
+      />
 
-      {/* Aggregate stats — top center */}
-      <div className="fixed top-6 left-1/2 z-30 -translate-x-1/2">
-        <div className="flex gap-4 rounded-full border border-white/10 bg-black/50 px-5 py-1.5 text-xs text-white/60 backdrop-blur-sm">
-          <span>
-            <span className="font-bold text-white">{activeCount}</span>
-            <span className="text-white/40">/{agents.length}</span> active
-          </span>
-          <span className="text-white/20">|</span>
-          <span>
-            <span className="font-bold text-white">
-              {formatTokens(totalTokens)}
-            </span>{" "}
-            tokens
-          </span>
-        </div>
-      </div>
-
-      {/* Skip to content — top right */}
-      <div className="fixed top-6 right-6 z-30">
-        <a
-          href="#features"
-          className="text-sm text-white/50 transition hover:text-white"
+      <aside className="fixed top-[50px] left-4 z-30 hidden w-[290px] md:block">
+        <div
+          className="glass-panel"
+          style={{ borderRadius: 10, padding: 8, maxHeight: "calc(100vh - 190px)" }}
         >
-          Skip to site →
-        </a>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              padding: "0 2px",
+            }}
+          >
+            <span
+              className="pulse-dot"
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "#548C5A",
+              }}
+            />
+            <span
+              style={{
+                color: "#74747C",
+                fontSize: 10,
+                letterSpacing: 1,
+                fontWeight: 600,
+                textTransform: "uppercase",
+              }}
+            >
+              Active Agents
+            </span>
+            <span style={{ marginLeft: "auto", color: "#595653", fontSize: 10 }}>
+              {agents.length}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              overflowY: "auto",
+              maxHeight: "calc(100vh - 240px)",
+              paddingRight: 2,
+            }}
+          >
+            {agents.map((agent) => (
+              <AgentCard key={agent.id} agentId={agent.id} />
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      <div className="fixed right-4 bottom-4 z-30 hidden md:block">
+        <div className="glass-panel" style={{ borderRadius: 10, padding: 8 }}>
+          <div
+            style={{
+              color: "#74747C",
+              fontSize: 10,
+              letterSpacing: 1,
+              fontWeight: 600,
+              marginBottom: 6,
+              textTransform: "uppercase",
+            }}
+          >
+            Office Map
+          </div>
+          <Minimap />
+        </div>
       </div>
 
-      {/* Agent cards — left panel */}
-      <div className="fixed top-20 left-6 z-30 hidden w-56 flex-col gap-2 md:flex">
-        {agents.map((agent) => (
-          <AgentCard key={agent.id} agentId={agent.id} />
-        ))}
+      <div className="fixed right-4 bottom-4 left-4 z-30 md:hidden">
+        <div
+          className="glass-panel"
+          style={{
+            borderRadius: 8,
+            border: "1px solid rgba(89,86,83,0.28)",
+            padding: "7px 10px",
+            display: "flex",
+            justifyContent: "space-between",
+            color: "#74747C",
+            fontSize: 11,
+          }}
+        >
+          <span>
+            active <strong style={{ color: "#9A9692" }}>{activeCount}</strong>
+          </span>
+          <span>
+            tokens <strong style={{ color: "#9A9692" }}>{formatTokens(totalTokens)}</strong>
+          </span>
+          <a href="#features" style={{ color: "#548C5A", fontWeight: 600 }}>
+            docs
+          </a>
+        </div>
       </div>
 
-      {/* Minimap — bottom right */}
-      <div className="fixed right-6 bottom-6 z-30 hidden md:block">
-        <Minimap />
-      </div>
-
-      {/* Toasts */}
       <ToastStack />
     </>
   );

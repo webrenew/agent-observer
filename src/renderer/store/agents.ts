@@ -14,6 +14,8 @@ export interface ChatSessionInfo {
   label: string
   agentId: string | null
   scopeId: string | null
+  workingDirectory: string | null
+  directoryMode: 'workspace' | 'custom'
 }
 
 interface AgentStore {

@@ -61,7 +61,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(null)
   const [status, setStatus] = useState<SessionStatus>('idle')
-  const [workingDir, setWorkingDir] = useState<string | null>(null)
+  const [fallbackWorkingDir, setFallbackWorkingDir] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const agentIdRef = useRef<string | null>(null)
   const subagentSeatCounter = useRef(0)
@@ -73,6 +73,9 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const getNextDeskIndex = useAgentStore((s) => s.getNextDeskIndex)
   const addEvent = useAgentStore((s) => s.addEvent)
   const updateChatSession = useAgentStore((s) => s.updateChatSession)
+  const chatSession = useAgentStore(
+    (s) => s.chatSessions.find((session) => session.id === chatSessionId) ?? null
+  )
 
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
   const scopes = useSettingsStore((s) => s.settings.scopes)
@@ -81,6 +84,10 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const getHistory = useChatHistoryStore((s) => s.getHistory)
   const isHistoryLoaded = useChatHistoryStore((s) => s.isLoaded)
 
+  const workingDir = chatSession ? chatSession.workingDirectory : fallbackWorkingDir
+  const isDirectoryCustom = chatSession ? chatSession.directoryMode === 'custom' : false
+  const hasStartedConversation = Boolean(chatSession?.agentId)
+
   // Derive scope from working directory
   const currentScope = workingDir ? matchScope(workingDir, scopes) : null
   const scopeId = currentScope?.id ?? 'default'
@@ -88,18 +95,28 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
   // Load chat history from memories on mount / scope change
   useEffect(() => {
-    if (!isHistoryLoaded(scopeId)) {
-      loadHistory(scopeId).then(() => {
-        const history = useChatHistoryStore.getState().getHistory(scopeId)
-        if (history.length > 0) {
-          setMessages((prev) => prev.length === 0 ? history : prev)
-        }
-      }).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[ChatPanel] Failed to load history: ${msg}`)
-      })
+    if (isHistoryLoaded(scopeId)) {
+      const history = getHistory(scopeId)
+      if (hasStartedConversation) {
+        setMessages((prev) => (prev.length === 0 ? history : prev))
+      } else {
+        setMessages(history)
+      }
+      return
     }
-  }, [scopeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    loadHistory(scopeId).then(() => {
+      const history = useChatHistoryStore.getState().getHistory(scopeId)
+      if (hasStartedConversation) {
+        setMessages((prev) => (prev.length === 0 ? history : prev))
+      } else {
+        setMessages(history)
+      }
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[ChatPanel] Failed to load history: ${msg}`)
+    })
+  }, [scopeId, getHistory, hasStartedConversation, isHistoryLoaded, loadHistory])
 
   // Persist a message to memories (fire-and-forget)
   const persistMessage = useCallback((content: string, role: string) => {
@@ -115,35 +132,66 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     })
   }, [scopeId, scopeName, workingDir])
 
-  // Sync working directory with workspace root
-  // If chat is empty (no messages sent), auto-update to new folder
-  // If chat has messages, keep current dir unless user explicitly changes
+  // Keep chat session directory synced to workspace until the first message.
+  // User-picked custom dirs are never overwritten by sidebar folder changes.
   useEffect(() => {
-    if (!workspaceRoot) return
-    if (messages.length === 0) {
-      setWorkingDir(workspaceRoot)
+    if (!chatSession) {
+      if (!fallbackWorkingDir && workspaceRoot) {
+        setFallbackWorkingDir(workspaceRoot)
+      }
+      return
     }
-  }, [workspaceRoot, messages.length])
+    if (chatSession.agentId) return
+    if (chatSession.directoryMode === 'custom') return
+    const nextDir = workspaceRoot ?? null
+    if (chatSession.workingDirectory === nextDir) return
+    updateChatSession(chatSessionId, {
+      workingDirectory: nextDir,
+      directoryMode: 'workspace',
+    })
+  }, [
+    chatSession,
+    chatSessionId,
+    fallbackWorkingDir,
+    updateChatSession,
+    workspaceRoot,
+  ])
 
-  // Initialize workingDir on mount
+  // Keep session scope metadata aligned with current working directory.
   useEffect(() => {
-    if (workspaceRoot && !workingDir) {
-      setWorkingDir(workspaceRoot)
-    }
-  }, [workspaceRoot, workingDir])
+    if (!chatSession) return
+    const nextScopeId = currentScope?.id ?? null
+    if (chatSession.scopeId === nextScopeId) return
+    updateChatSession(chatSessionId, { scopeId: nextScopeId })
+  }, [chatSession, chatSessionId, currentScope?.id, updateChatSession])
 
   const handleChangeWorkingDir = useCallback(async () => {
     try {
       const selected = await window.electronAPI.fs.openFolderDialog()
-      if (selected) setWorkingDir(selected)
+      if (!selected) return
+      if (chatSession) {
+        updateChatSession(chatSessionId, {
+          workingDirectory: selected,
+          directoryMode: 'custom',
+        })
+      } else {
+        setFallbackWorkingDir(selected)
+      }
     } catch (err) {
       console.error('[ChatPanel] Failed to change working directory:', err)
     }
-  }, [])
+  }, [chatSession, chatSessionId, updateChatSession])
 
   const handleSyncToWorkspace = useCallback(() => {
-    if (workspaceRoot) setWorkingDir(workspaceRoot)
-  }, [workspaceRoot])
+    if (chatSession) {
+      updateChatSession(chatSessionId, {
+        workingDirectory: workspaceRoot ?? null,
+        directoryMode: 'workspace',
+      })
+      return
+    }
+    setFallbackWorkingDir(workspaceRoot ?? null)
+  }, [chatSession, chatSessionId, updateChatSession, workspaceRoot])
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -595,67 +643,67 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   // Derive display label for cwd
   const cwdLabel = workingDir
     ? workingDir.split('/').pop() ?? workingDir
-    : null
-  const showDirMismatch = workspaceRoot && workingDir && workspaceRoot !== workingDir
+    : 'No folder selected'
+  const showSyncToWorkspace = Boolean(
+    workspaceRoot && (workingDir !== workspaceRoot || isDirectoryCustom)
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Working directory header */}
-      {workingDir && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px',
-          borderBottom: '1px solid rgba(89,86,83,0.15)', fontSize: 11,
-          flexShrink: 0, minHeight: 26,
-        }}>
-          <span style={{ color: '#595653' }}>$</span>
-          <span
-            title={workingDir}
-            style={{
-              color: showDirMismatch ? '#c87830' : '#74747C',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-            }}
-          >
-            {cwdLabel}
-          </span>
-          {showDirMismatch && (
-            <button
-              onClick={handleSyncToWorkspace}
-              title={`Sync to ${workspaceRoot}`}
-              style={{
-                background: 'transparent', border: 'none', color: '#548C5A',
-                cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, padding: '0 4px',
-              }}
-            >
-              sync
-            </button>
-          )}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px',
+        borderBottom: '1px solid rgba(89,86,83,0.15)', fontSize: 11,
+        flexShrink: 0, minHeight: 26,
+      }}>
+        <span style={{ color: '#595653' }}>$</span>
+        <span
+          title={workingDir ?? 'No working directory selected'}
+          style={{
+            color: showSyncToWorkspace ? '#c87830' : '#74747C',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+          }}
+        >
+          {cwdLabel}
+        </span>
+        {showSyncToWorkspace && (
           <button
-            onClick={() => void handleChangeWorkingDir()}
-            title="Change working directory"
+            onClick={handleSyncToWorkspace}
+            title={workspaceRoot ? `Sync to ${workspaceRoot}` : 'Clear workspace directory'}
             style={{
-              background: 'transparent', border: 'none', color: '#595653',
-              cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, padding: '0 4px',
+              background: 'transparent', border: 'none', color: '#548C5A',
+              cursor: 'pointer', fontFamily: 'inherit', fontSize: 10, padding: '0 4px',
             }}
           >
-            ...
+            sync
           </button>
-          <button
-            onClick={handleToggleYolo}
-            title={yoloMode ? 'YOLO mode ON — bypassing permissions' : 'YOLO mode OFF — normal permissions'}
-            style={{
-              background: yoloMode ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
-              border: yoloMode ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid transparent',
-              borderRadius: 4,
-              color: yoloMode ? '#ef4444' : '#595653',
-              cursor: 'pointer', fontFamily: 'inherit', fontSize: 10,
-              padding: '1px 6px', fontWeight: yoloMode ? 600 : 400,
-              transition: 'all 0.15s ease',
-            }}
-          >
-            YOLO
-          </button>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => void handleChangeWorkingDir()}
+          title="Pick folder for this chat"
+          style={{
+            background: 'transparent', border: 'none', color: '#595653',
+            cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, padding: '0 4px',
+          }}
+        >
+          pick
+        </button>
+        <button
+          onClick={handleToggleYolo}
+          title={yoloMode ? 'YOLO mode ON — bypassing permissions' : 'YOLO mode OFF — normal permissions'}
+          style={{
+            background: yoloMode ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+            border: yoloMode ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid transparent',
+            borderRadius: 4,
+            color: yoloMode ? '#ef4444' : '#595653',
+            cursor: 'pointer', fontFamily: 'inherit', fontSize: 10,
+            padding: '1px 6px', fontWeight: yoloMode ? 600 : 400,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          YOLO
+        </button>
+      </div>
 
       {/* Messages */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', minHeight: 0 }}>
@@ -673,8 +721,26 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             <span style={{ fontSize: 24 }}>👾</span>
             <span style={{ color: '#74747C', fontSize: 'inherit' }}>Ask Claude anything</span>
             <span style={{ color: '#595653', fontSize: 11 }}>
-              {workingDir ? `Working in ${cwdLabel}` : 'Powered by Claude Code CLI'}
+              {workingDir ? `Working in ${cwdLabel}` : 'Pick a folder to scope this chat'}
             </span>
+            {!workingDir && (
+              <button
+                onClick={() => void handleChangeWorkingDir()}
+                style={{
+                  marginTop: 6,
+                  background: 'rgba(84,140,90,0.12)',
+                  color: '#7fb887',
+                  border: '1px solid rgba(84,140,90,0.35)',
+                  borderRadius: 6,
+                  padding: '6px 10px',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Choose folder
+              </button>
+            )}
           </div>
         ) : (
           <>

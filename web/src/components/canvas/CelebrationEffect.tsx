@@ -56,7 +56,7 @@ export function CelebrationEffect({
 }: CelebrationEffectProps) {
   const meshRef = useRef<InstancedMesh>(null);
   const dummy = useMemo(() => new Object3D(), []);
-  const particles = useMemo(() => makeParticles(type), [type, startedAt]);
+  const particles = useMemo(() => makeParticles(type), [type]);
 
   useFrame(() => {
     if (!meshRef.current) return;

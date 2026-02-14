@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
 :root {
-  --color-background: #0a0a0a;
-  --color-foreground: #ededed;
+  --as-bg: #0e0e0d;
+  --as-bg-soft: #1a1a19;
+  --as-text: #9a9692;
+  --as-text-muted: #74747c;
+  --as-text-subtle: #595653;
+  --as-border: rgba(89, 86, 83, 0.3);
+  --as-green: #548c5a;
+  --as-amber: #d4a040;
+  --as-orange: #c87830;
+  --as-red: #c45050;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html,
@@ -10,21 +22,140 @@ body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  background: var(--as-bg);
+  color: var(--as-text);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-/* Typewriter cursor blink */
+body {
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(84, 140, 90, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 8%, rgba(212, 160, 64, 0.06), transparent 32%),
+    linear-gradient(180deg, #111110 0%, #0e0e0d 100%);
+}
+
+main {
+  position: relative;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #595653;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #74747c;
+}
+
+.glass-panel {
+  background: rgba(14, 14, 13, 0.72);
+  border: 1px solid rgba(89, 86, 83, 0.24);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.hover-row {
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.hover-row:hover {
+  background: rgba(154, 150, 146, 0.06);
+  border-color: rgba(154, 150, 146, 0.2);
+}
+
+.nav-item {
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  color: #9a9692 !important;
+  text-shadow: 0 0 12px rgba(154, 150, 146, 0.3);
+}
+
+.glow-amber {
+  text-shadow: 0 0 8px rgba(212, 160, 64, 0.4);
+}
+
+.glow-green {
+  text-shadow: 0 0 8px rgba(84, 140, 90, 0.4);
+}
+
+@keyframes pulse-green {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(84, 140, 90, 0.65);
+  }
+  50% {
+    box-shadow: 0 0 6px 3px rgba(84, 140, 90, 0.25);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes pulse-amber {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 160, 64, 0.65);
+  }
+  50% {
+    box-shadow: 0 0 6px 3px rgba(212, 160, 64, 0.22);
+  }
+}
+
+.pulse-amber {
+  animation: pulse-amber 2s ease-in-out infinite;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-in {
+  animation: toast-in 0.24s ease-out both;
+}
+
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
 
 .typewriter-cursor::after {
   content: "▊";
   animation: blink 0.8s step-end infinite;
-  color: #4ECDC4;
+  color: var(--as-amber);
 }
 
-/* Virtual joystick base */
 .joystick-zone {
   touch-action: none;
   -webkit-touch-callout: none;

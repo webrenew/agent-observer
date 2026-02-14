@@ -1,52 +1,129 @@
 "use client";
 
 const FEATURES = [
-  { name: "The Dispatcher", role: "Operations Lead", color: "#FF6B35", text: "Keep track of every agent running across your tools — Cursor, Claude Code, custom scripts — all in one place." },
-  { name: "The Watcher", role: "Observability Engineer", color: "#4ECDC4", text: "Monitor everything in real-time. Token usage, error rates, task duration — all streaming live." },
-  { name: "The Builder", role: "Developer Advocate", color: "#45B7D1", text: "Getting started? It's just an npm install and a few lines of config. Integrates with any agent framework." },
-  { name: "The Librarian", role: "Knowledge Architect", color: "#96CEB4", text: "Every agent interaction generates context. Nothing gets lost — memories, decisions, outputs, all indexed." },
-  { name: "The Messenger", role: "Integration Specialist", color: "#FFEAA7", text: "Slack, Discord, webhooks — when something important happens, the right people know instantly." },
-  { name: "The Architect", role: "System Designer", color: "#DDA0DD", text: "A lightweight observation layer with zero performance overhead. Open source core, cloud dashboard optional." },
+  {
+    name: "Desktop-grade HUD",
+    role: "Unified Status Language",
+    color: "#548C5A",
+    text: "The web view uses the same status surfaces, color semantics, and monitoring cadence as the desktop app.",
+  },
+  {
+    name: "Live Agent Telemetry",
+    role: "Token + Task Flow",
+    color: "#d4a040",
+    text: "Track active states, token rates, and task transitions in real time without switching contexts.",
+  },
+  {
+    name: "Project Scope Context",
+    role: "Workspace Awareness",
+    color: "#c87830",
+    text: "Directory-scoped sessions and context continuity keep each agent conversation grounded to its project.",
+  },
 ];
 
 export function FallbackPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] px-6 py-20 text-white">
-      <div className="mx-auto max-w-4xl text-center">
-        <h1 className="mb-4 text-5xl font-bold">
-          <span className="text-[#4ECDC4]">Agent</span> Space
-        </h1>
-        <p className="mb-2 text-xl text-white/70">
-          Mission Control for Your AI Agents
-        </p>
-        <p className="mb-12 text-sm text-white/40">
-          Your browser doesn&apos;t support WebGL. Here&apos;s what you&apos;re missing:
-        </p>
+    <div className="min-h-screen bg-[#0e0e0d] px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-5xl">
+        <div
+          className="glass-panel"
+          style={{
+            borderRadius: 12,
+            border: "1px solid rgba(89,86,83,0.25)",
+            padding: "20px 18px",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16, letterSpacing: 1 }}>⬢</span>
+            <span
+              className="glow-amber"
+              style={{ color: "#9A9692", fontSize: 15, fontWeight: 600 }}
+            >
+              Agent Space
+            </span>
+          </div>
+          <h1
+            style={{
+              margin: "12px 0 8px",
+              color: "#9A9692",
+              fontSize: "clamp(24px, 4vw, 40px)",
+              lineHeight: 1.15,
+              letterSpacing: -0.4,
+            }}
+          >
+            WebGL is unavailable in this browser.
+          </h1>
+          <p style={{ margin: 0, color: "#74747C", fontSize: 13, maxWidth: 720 }}>
+            The interactive office scene needs WebGL. You can still review the
+            product capabilities and continue in the desktop app experience.
+          </p>
+        </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           {FEATURES.map((feature) => (
             <div
               key={feature.name}
-              className="rounded-xl border border-white/10 bg-white/5 p-6 text-left"
+              className="glass-panel hover-row"
+              style={{
+                borderRadius: 10,
+                border: "1px solid rgba(89,86,83,0.24)",
+                padding: "12px 12px 10px",
+              }}
             >
               <div
-                className="mb-3 h-2 w-12 rounded-full"
-                style={{ backgroundColor: feature.color }}
+                style={{
+                  width: 28,
+                  height: 2,
+                  borderRadius: 2,
+                  background: feature.color,
+                  marginBottom: 10,
+                }}
               />
-              <h3 className="mb-1 font-bold">{feature.name}</h3>
-              <p className="mb-3 text-xs text-white/50">{feature.role}</p>
-              <p className="text-sm text-white/70">{feature.text}</p>
+              <h3
+                style={{ margin: "0 0 4px", color: "#9A9692", fontSize: 14, fontWeight: 600 }}
+              >
+                {feature.name}
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 8px",
+                  color: "#595653",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                {feature.role}
+              </p>
+              <p style={{ margin: 0, color: "#74747C", fontSize: 12, lineHeight: 1.5 }}>
+                {feature.text}
+              </p>
             </div>
           ))}
         </div>
 
-        <div className="mt-16">
+        <div className="mt-8 flex flex-wrap items-center gap-10">
           <a
             href="/docs/quickstart"
-            className="inline-block rounded-lg bg-[#4ECDC4] px-8 py-3 font-bold text-black transition hover:bg-[#45B7D1]"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(84,140,90,0.18)",
+              border: "1px solid rgba(84,140,90,0.4)",
+              color: "#7fb887",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
           >
-            Get Started →
+            Open quickstart →
           </a>
+          <span style={{ color: "#595653", fontSize: 11 }}>
+            Tip: enable hardware acceleration or open in a WebGL-capable browser.
+          </span>
         </div>
       </div>
     </div>

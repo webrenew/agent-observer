@@ -6,6 +6,7 @@
  */
 
 import { create } from 'zustand'
+import { useAgentStore } from './agents'
 
 const MAX_RECENT = 10
 const RECENT_KEY = 'agent-space:recentFolders'
@@ -59,10 +60,31 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
     const updated = [path, ...recentFolders.filter((f) => f !== path)].slice(0, MAX_RECENT)
     saveRecent(updated)
     set({ rootPath: path, recentFolders: updated })
+
+    // Keep chat sessions scoped to workspace before the first message,
+    // unless the user explicitly chose a custom directory for that chat.
+    const { chatSessions, updateChatSession } = useAgentStore.getState()
+    for (const session of chatSessions) {
+      if (session.agentId) continue
+      if (session.directoryMode === 'custom') continue
+      if (session.workingDirectory === path && session.directoryMode === 'workspace') continue
+      updateChatSession(session.id, {
+        workingDirectory: path,
+        directoryMode: 'workspace',
+      })
+    }
   },
 
   closeFolder: () => {
     set({ rootPath: null })
+
+    const { chatSessions, updateChatSession } = useAgentStore.getState()
+    for (const session of chatSessions) {
+      if (session.agentId) continue
+      if (session.directoryMode === 'custom') continue
+      if (session.workingDirectory === null) continue
+      updateChatSession(session.id, { workingDirectory: null })
+    }
   },
 
   removeRecent: (path: string) => {

@@ -68,6 +68,7 @@ if (!gotTheLock) {
   app.quit()
 } else {
   let mainWindow: BrowserWindow | null = null
+  let chatPopoutHandlerRegistered = false
 
   app.on('second-instance', () => {
     if (mainWindow) {
@@ -75,6 +76,21 @@ if (!gotTheLock) {
       mainWindow.focus()
     }
   })
+
+  function setupChatPopoutHandler(): void {
+    if (chatPopoutHandlerRegistered) return
+    chatPopoutHandlerRegistered = true
+
+    ipcMain.handle('chat:popout', (_event, sessionId: unknown) => {
+      if (typeof sessionId !== 'string' || !mainWindow) return
+      // Don't create duplicate windows
+      if (chatWindows.has(sessionId)) {
+        chatWindows.get(sessionId)?.focus()
+        return
+      }
+      createChatWindow(sessionId, mainWindow)
+    })
+  }
 
   function createWindow(): void {
     mainWindow = new BrowserWindow({
@@ -105,17 +121,7 @@ if (!gotTheLock) {
     setupMemoriesHandlers()
     setupAgentNamerHandlers(mainWindow)
     createApplicationMenu(mainWindow)
-
-    // Pop-out chat handler
-    ipcMain.handle('chat:popout', (_event, sessionId: unknown) => {
-      if (typeof sessionId !== 'string' || !mainWindow) return
-      // Don't create duplicate windows
-      if (chatWindows.has(sessionId)) {
-        chatWindows.get(sessionId)?.focus()
-        return
-      }
-      createChatWindow(sessionId, mainWindow)
-    })
+    setupChatPopoutHandler()
 
     if (process.env['ELECTRON_RENDERER_URL']) {
       mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
