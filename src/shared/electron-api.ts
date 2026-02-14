@@ -24,6 +24,12 @@ export interface FsReadFileResult {
   size: number
 }
 
+export interface FsReadImageDataUrlResult {
+  dataUrl: string
+  size: number
+  mimeType: string
+}
+
 export interface FsSearchResult {
   path: string
   name: string
@@ -98,6 +104,7 @@ export interface ElectronAPI {
   fs: {
     readDir: (dirPath: string, showHidden?: boolean) => Promise<FsEntry[]>
     readFile: (filePath: string) => Promise<FsReadFileResult>
+    readImageDataUrl: (filePath: string) => Promise<FsReadImageDataUrlResult>
     search: (rootDir: string, query: string, maxResults?: number) => Promise<FsSearchResult[]>
     homeDir: () => Promise<string>
     stat: (filePath: string) => Promise<FsStatResult>

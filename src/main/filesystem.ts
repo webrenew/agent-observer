@@ -117,6 +117,19 @@ async function readDirectory(dirPath: string, showHidden: boolean): Promise<File
 // ── Read file content ────────────────────────────────────────────────
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB limit for preview
+const MAX_IMAGE_PREVIEW_SIZE = 25 * 1024 * 1024 // 25MB limit for in-app image preview
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml',
+  '.avif': 'image/avif',
+}
 
 async function readFileContent(filePath: string): Promise<{ content: string; truncated: boolean; size: number }> {
   const resolved = path.resolve(filePath)
@@ -135,6 +148,29 @@ async function readFileContent(filePath: string): Promise<{ content: string; tru
 
   const content = await fs.promises.readFile(resolved, 'utf-8')
   return { content, truncated: false, size: stat.size }
+}
+
+function detectImageMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  return IMAGE_MIME_BY_EXT[ext] ?? 'application/octet-stream'
+}
+
+async function readImageAsDataUrl(filePath: string): Promise<{ dataUrl: string; size: number; mimeType: string }> {
+  const resolved = path.resolve(filePath)
+  const stat = await fs.promises.stat(resolved)
+  if (!stat.isFile()) {
+    throw new Error('Path is not a file')
+  }
+  if (stat.size > MAX_IMAGE_PREVIEW_SIZE) {
+    throw new Error(`Image preview exceeds ${(MAX_IMAGE_PREVIEW_SIZE / (1024 * 1024)).toFixed(0)}MB limit`)
+  }
+  const buffer = await fs.promises.readFile(resolved)
+  const mimeType = detectImageMimeType(resolved)
+  return {
+    dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
+    size: stat.size,
+    mimeType,
+  }
 }
 
 // ── Fuzzy file search ────────────────────────────────────────────────
@@ -537,6 +573,15 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
       return await readFileContent(filePath)
     } catch (err) {
       console.error('[filesystem] readFile error:', err)
+      throw err
+    }
+  })
+
+  ipcMain.handle('fs:readImageDataUrl', async (_event, filePath: string) => {
+    try {
+      return await readImageAsDataUrl(filePath)
+    } catch (err) {
+      console.error('[filesystem] readImageDataUrl error:', err)
       throw err
     }
   })

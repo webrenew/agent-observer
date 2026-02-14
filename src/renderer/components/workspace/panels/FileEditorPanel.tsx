@@ -55,6 +55,15 @@ function langColor(lang: string): string {
 
 // ── Binary detection ─────────────────────────────────────────────────
 
+const IMAGE_EXTS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp', 'svg', 'avif',
+])
+
+function isImageFile(name: string): boolean {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  return IMAGE_EXTS.has(ext)
+}
+
 const BINARY_EXTS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp',
   'mp3', 'mp4', 'wav', 'avi', 'mov', 'webm',
@@ -138,6 +147,7 @@ function defineOrchidTheme(monaco: Monaco): void {
 export function FileEditorPanel() {
   const [filePath, setFilePath] = useState<string | null>(null)
   const [content, setContent] = useState<string>('')
+  const [imagePreviewDataUrl, setImagePreviewDataUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fileSize, setFileSize] = useState(0)
@@ -151,6 +161,9 @@ export function FileEditorPanel() {
 
   const fileName = filePath?.split('/').pop() ?? ''
   const lang = filePath ? detectLang(fileName) : 'plaintext'
+  const isImagePreview = filePath ? isImageFile(fileName) : false
+  const fileTypeLabel = isImagePreview ? 'image' : lang
+  const fileTypeColor = isImagePreview ? '#6b8fa3' : langColor(lang)
 
   const { notifyChange } = useLspBridge(filePath, lang, monacoRef, editorRef)
 
@@ -167,23 +180,54 @@ export function FileEditorPanel() {
   // Load file content
   useEffect(() => {
     if (!filePath) return
+    const targetPath = filePath
 
-    const name = filePath.split('/').pop() ?? ''
+    const name = targetPath.split('/').pop() ?? ''
+    setDiagnosticCounts({ errors: 0, warnings: 0 })
+    let cancelled = false
+
+    if (isImageFile(name)) {
+      setIsLoading(true)
+      setError(null)
+      setIsDirty(false)
+      setContent('')
+
+      async function loadImagePreview(): Promise<void> {
+        try {
+          const result = await window.electronAPI.fs.readImageDataUrl(targetPath)
+          if (cancelled) return
+          setImagePreviewDataUrl(result.dataUrl)
+          setFileSize(result.size)
+        } catch (err) {
+          if (cancelled) return
+          console.error('[FileEditor] Image preview load failed:', err)
+          setImagePreviewDataUrl(null)
+          setError(`Failed to preview image: ${err instanceof Error ? err.message : 'unknown'}`)
+        } finally {
+          if (!cancelled) setIsLoading(false)
+        }
+      }
+
+      void loadImagePreview()
+      return () => { cancelled = true }
+    }
+
+    setImagePreviewDataUrl(null)
     if (isBinary(name)) {
       setError('Binary file — cannot edit')
       setContent('')
+      setFileSize(0)
       setIsLoading(false)
       return
     }
 
-    let cancelled = false
     setIsLoading(true)
     setError(null)
     setIsDirty(false)
 
     async function load(): Promise<void> {
       try {
-        const result = await window.electronAPI.fs.readFile(filePath!)
+        const result = await window.electronAPI.fs.readFile(targetPath)
         if (cancelled) return
         setContent(result.content)
         savedContentRef.current = result.content
@@ -333,10 +377,10 @@ export function FileEditorPanel() {
             {isDirty ? '● ' : ''}{fileName}
           </span>
           <span style={{
-            color: langColor(lang), fontSize: 10, fontWeight: 600,
-            padding: '1px 6px', background: `${langColor(lang)}15`, borderRadius: 3,
+            color: fileTypeColor, fontSize: 10, fontWeight: 600,
+            padding: '1px 6px', background: `${fileTypeColor}15`, borderRadius: 3,
           }}>
-            {lang}
+            {fileTypeLabel}
           </span>
           <div style={{ flex: 1 }} />
           {diagnosticCounts.errors > 0 && (
@@ -368,6 +412,37 @@ export function FileEditorPanel() {
           </div>
         ) : isLoading ? (
           <div style={{ padding: 16, color: '#595653', fontSize: 12 }}>Loading...</div>
+        ) : imagePreviewDataUrl ? (
+          <div
+            style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              backgroundImage: `
+                linear-gradient(45deg, rgba(89,86,83,0.18) 25%, transparent 25%),
+                linear-gradient(-45deg, rgba(89,86,83,0.18) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(89,86,83,0.18) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(89,86,83,0.18) 75%)
+              `,
+              backgroundSize: '18px 18px',
+              backgroundPosition: '0 0, 0 9px, 9px -9px, -9px 0px',
+            }}
+          >
+            <img
+              src={imagePreviewDataUrl}
+              alt={fileName}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                border: '1px solid rgba(89,86,83,0.25)',
+                boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+                borderRadius: 6,
+              }}
+            />
+          </div>
         ) : error ? (
           <div style={{ padding: 16, color: '#c45050', fontSize: 12 }}>{error}</div>
         ) : (
@@ -396,7 +471,7 @@ export function FileEditorPanel() {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
             {filePath}
           </span>
-          <span>⌘S save</span>
+          <span>{imagePreviewDataUrl ? 'Image preview' : '⌘S save'}</span>
         </div>
       )}
     </div>

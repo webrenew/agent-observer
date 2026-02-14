@@ -116,6 +116,11 @@ const electronAPI: ElectronAPI = {
         content: string; truncated: boolean; size: number
       }>,
 
+    readImageDataUrl: (filePath: string) =>
+      ipcRenderer.invoke('fs:readImageDataUrl', filePath) as Promise<{
+        dataUrl: string; size: number; mimeType: string
+      }>,
+
     search: (rootDir: string, query: string, maxResults?: number) =>
       ipcRenderer.invoke('fs:search', rootDir, query, maxResults) as Promise<Array<{
         path: string; name: string; isDirectory: boolean
