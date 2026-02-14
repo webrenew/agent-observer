@@ -86,7 +86,8 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
     }
 
     // Regression check: folder dialog path should still work after close/reopen
-    // without targeting a destroyed BrowserWindow instance.
+    // without targeting a destroyed BrowserWindow instance, and concurrent
+    // requests should collapse into a single native dialog call.
     await electronApp.evaluate(({ dialog }) => {
       const g = globalThis as Record<string, unknown>
       g.__smokeOriginalShowOpenDialog = dialog.showOpenDialog
@@ -98,11 +99,17 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
         if (firstArg && typeof firstArg.isDestroyed === 'function') {
           g.__smokeDialogParentDestroyed = firstArg.isDestroyed()
         }
+        await new Promise((resolve) => setTimeout(resolve, 80))
         return { canceled: true, filePaths: [] }
       }
     })
 
-    await mainWindow.getByRole('button', { name: 'Choose folder' }).first().click()
+    await mainWindow.evaluate(async () => {
+      const api = (window as unknown as {
+        electronAPI: { fs: { openFolderDialog: () => Promise<string | null> } }
+      }).electronAPI
+      await Promise.all([api.fs.openFolderDialog(), api.fs.openFolderDialog()])
+    })
     const dialogProbe = await electronApp.evaluate(() => {
       const g = globalThis as Record<string, unknown>
       return {
@@ -110,7 +117,7 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
         parentDestroyed: g.__smokeDialogParentDestroyed === true,
       }
     })
-    expect(dialogProbe.calls).toBeGreaterThan(0)
+    expect(dialogProbe.calls).toBe(1)
     expect(dialogProbe.parentDestroyed).toBe(false)
     await electronApp.evaluate(({ dialog }) => {
       const g = globalThis as Record<string, unknown>
