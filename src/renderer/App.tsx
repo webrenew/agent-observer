@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react'
 import { WorkspaceLayout } from './components/workspace/WorkspaceLayout'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { FirstRunOnboarding } from './components/FirstRunOnboarding'
 import { useSettingsStore, loadSettings } from './store/settings'
 
 const LazySettingsPanel = lazy(async () => {
@@ -39,6 +40,7 @@ export function App() {
           <LazySettingsPanel />
         </Suspense>
       ) : null}
+      <FirstRunOnboarding />
     </div>
   )
 }

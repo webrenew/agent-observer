@@ -183,6 +183,14 @@ const electronAPI: ElectronAPI = {
     stop: (sessionId: string) =>
       ipcRenderer.invoke('claude:stop', sessionId) as Promise<void>,
 
+    isAvailable: () =>
+      ipcRenderer.invoke('claude:isAvailable') as Promise<{
+        available: boolean
+        binaryPath: string | null
+        version: string | null
+        error?: string
+      }>,
+
     onEvent: (callback) => {
       const handler = (
         _event: Electron.IpcRendererEvent,

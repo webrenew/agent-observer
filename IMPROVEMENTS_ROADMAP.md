@@ -55,7 +55,7 @@ Last updated: 2026-02-14
     - IPC registration/runtime errors
     - startup failure breadcrumbs
 
-- [ ] **First-run onboarding flow**
+- [x] **First-run onboarding flow**
   - Goal: reduce setup friction.
   - Verify:
     - Claude CLI availability

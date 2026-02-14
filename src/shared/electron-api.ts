@@ -111,6 +111,7 @@ export interface ElectronAPI {
   claude: {
     start: (options: ClaudeSessionOptions) => Promise<{ sessionId: string }>
     stop: (sessionId: string) => Promise<void>
+    isAvailable: () => Promise<{ available: boolean; binaryPath: string | null; version: string | null; error?: string }>
     onEvent: (callback: (event: ClaudeEvent) => void) => Unsubscribe
   }
   agent: {

@@ -121,6 +121,40 @@ function getEnhancedEnv(): NodeJS.ProcessEnv {
 
 let resolvedClaudePath: string | null = null
 
+function checkClaudeAvailability(): {
+  available: boolean
+  binaryPath: string | null
+  version: string | null
+  error?: string
+} {
+  try {
+    if (!resolvedClaudePath) {
+      resolvedClaudePath = resolveClaudeBinary()
+    }
+    const binaryPath = resolvedClaudePath
+    const version = execFileSync(binaryPath, ['--version'], {
+      encoding: 'utf-8',
+      timeout: 5000,
+      env: getEnhancedEnv(),
+      cwd: process.cwd(),
+    }).trim()
+
+    return {
+      available: true,
+      binaryPath,
+      version: version || null,
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    return {
+      available: false,
+      binaryPath: resolvedClaudePath,
+      version: null,
+      error: message,
+    }
+  }
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────
 
 function generateSessionId(): string {
@@ -446,6 +480,10 @@ export function setupClaudeSessionHandlers(mainWindow: BrowserWindow): void {
       throw new Error('claude:stop requires a sessionId string')
     }
     stopSession(sessionId)
+  })
+
+  ipcMain.handle('claude:isAvailable', () => {
+    return checkClaudeAvailability()
   })
 }
 

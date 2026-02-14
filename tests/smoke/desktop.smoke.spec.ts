@@ -22,6 +22,11 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
     let mainWindow = await electronApp.firstWindow()
     await mainWindow.waitForLoadState('domcontentloaded')
 
+    const finishOnboardingButton = mainWindow.getByRole('button', { name: 'Finish setup' })
+    if (await finishOnboardingButton.count()) {
+      await finishOnboardingButton.first().click()
+    }
+
     await expect(mainWindow.locator('.slot-tab', { hasText: 'CHAT' }).first()).toBeVisible()
 
     if (process.platform === 'darwin') {
