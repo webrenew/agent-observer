@@ -3,10 +3,6 @@ import { useAgentStore } from '../../../store/agents'
 import { useSettingsStore } from '../../../store/settings'
 import { TerminalTab } from '../../TerminalTab'
 import { matchScope } from '../../../lib/scopeMatcher'
-import { preloadSounds } from '../../../lib/soundPlayer'
-
-// Preload sounds once
-preloadSounds()
 
 let terminalCounter = 0
 

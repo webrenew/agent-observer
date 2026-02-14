@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useSettingsStore, saveSettings } from '../store/settings'
-import type { AppSettings, CursorStyle, SubscriptionType, Scope, SoundEventType, SystemSound, TerminalThemeName } from '../types'
-import { DEFAULT_SETTINGS, DEFAULT_SOUND_EVENTS, DEFAULT_SCOPE, SUBSCRIPTION_OPTIONS } from '../types'
+import type { AppSettings, CursorStyle, SubscriptionType, Scope, TerminalThemeName } from '../types'
+import { DEFAULT_SETTINGS, SUBSCRIPTION_OPTIONS } from '../types'
 import { THEME_NAMES, THEME_LABELS, getTheme } from '../lib/terminalThemes'
-import { SYSTEM_SOUND_NAMES, playSystemSound } from '../lib/soundPlayer'
 
 type Tab = 'general' | 'appearance' | 'terminal' | 'scopes' | 'subscription'
 
@@ -40,17 +39,6 @@ const CURSOR_STYLES: { value: CursorStyle; label: string }[] = [
   { value: 'underline', label: 'Underline' },
   { value: 'bar', label: 'Bar' }
 ]
-
-const SOUND_EVENT_LABELS: Record<SoundEventType, string> = {
-  commit: 'Git Commit',
-  push: 'Git Push',
-  test_pass: 'Tests Passed',
-  test_fail: 'Tests Failed',
-  build_pass: 'Build Passed',
-  build_fail: 'Build Failed',
-  agent_done: 'Agent Done',
-  error: 'Error',
-}
 
 const SCOPE_COLOR_PRESETS = [
   '#4ade80', '#60a5fa', '#a78bfa', '#f87171', '#fbbf24',
@@ -254,22 +242,6 @@ export function SettingsPanel() {
           ? { ...s, directories: s.directories.filter((_, i) => i !== dirIndex) }
           : s
       ),
-    }))
-  }, [])
-
-  const updateScopeSoundEvent = useCallback((scopeId: string, event: SoundEventType, value: SystemSound | 'none' | '') => {
-    setDraft((d) => ({
-      ...d,
-      scopes: d.scopes.map((s) => {
-        if (s.id !== scopeId) return s
-        const soundEvents = { ...s.soundEvents }
-        if (value === '') {
-          delete soundEvents[event]
-        } else {
-          soundEvents[event] = value
-        }
-        return { ...s, soundEvents }
-      }),
     }))
   }, [])
 
@@ -529,8 +501,8 @@ export function SettingsPanel() {
 
           {activeTab === 'scopes' && (
             <>
-              <Section title="NOTIFICATION SOUNDS">
-                <Row label="Enable sounds">
+              <Section title="CHAT COMPLETION DING">
+                <Row label="Play system ding">
                   <Toggle
                     checked={draft.soundsEnabled}
                     onChange={(v) => setDraft((d) => ({ ...d, soundsEnabled: v }))}
@@ -621,42 +593,6 @@ export function SettingsPanel() {
                       + Add directory
                     </button>
 
-                    {/* Per-scope sounds */}
-                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 1, color: '#74747C', marginBottom: 4, marginTop: 10 }}>
-                      SOUND OVERRIDES
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
-                      {(Object.keys(SOUND_EVENT_LABELS) as SoundEventType[]).map((evt) => (
-                        <div key={evt} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 12, color: '#74747C', flex: 1 }}>{SOUND_EVENT_LABELS[evt]}</span>
-                          <select
-                            value={scope.soundEvents[evt] ?? ''}
-                            onChange={(e) => updateScopeSoundEvent(scope.id, evt, e.target.value as SystemSound | 'none' | '')}
-                            style={{
-                              background: 'rgba(89,86,83,0.15)', border: '1px solid rgba(89,86,83,0.3)',
-                              borderRadius: 4, padding: '2px 4px', fontSize: 11, color: '#9A9692',
-                              outline: 'none', fontFamily: 'inherit', width: 80,
-                            }}
-                          >
-                            <option value="" style={{ background: '#0E0E0D' }}>Default</option>
-                            <option value="none" style={{ background: '#0E0E0D' }}>None</option>
-                            {SYSTEM_SOUND_NAMES.map((s) => (
-                              <option key={s} value={s} style={{ background: '#0E0E0D' }}>{s}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => {
-                              const sound = scope.soundEvents[evt] || DEFAULT_SOUND_EVENTS[evt]
-                              if (sound && sound !== 'none') playSystemSound(sound as SystemSound)
-                            }}
-                            style={{ background: 'transparent', border: 'none', color: '#595653', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
-                            title="Preview"
-                          >
-                            ▶
-                          </button>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 ))}
 

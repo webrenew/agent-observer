@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '../../store/workspace'
 import { useSettingsStore } from '../../store/settings'
 import { useChatHistoryStore } from '../../store/chatHistory'
 import { matchScope } from '../../lib/scopeMatcher'
+import { playChatCompletionDing } from '../../lib/soundPlayer'
 import { ChatMessageBubble } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 
@@ -83,6 +84,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
   const recentFolders = useWorkspaceStore((s) => s.recentFolders)
   const scopes = useSettingsStore((s) => s.settings.scopes)
+  const soundsEnabled = useSettingsStore((s) => s.settings.soundsEnabled)
   const yoloMode = useSettingsStore((s) => s.settings.yoloMode)
   const loadHistory = useChatHistoryStore((s) => s.loadHistory)
   const getHistory = useChatHistoryStore((s) => s.getHistory)
@@ -483,6 +485,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             setStatus('error')
           } else {
             setStatus('done')
+            playChatCompletionDing(soundsEnabled)
           }
 
           if (agentId) {
@@ -529,7 +532,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     })
 
     return unsub
-  }, [addEvent, persistMessage, setActiveClaudeSession, updateAgent])
+  }, [addEvent, persistMessage, setActiveClaudeSession, soundsEnabled, updateAgent])
 
   const handleSend = useCallback(
     async (message: string, files?: File[]) => {

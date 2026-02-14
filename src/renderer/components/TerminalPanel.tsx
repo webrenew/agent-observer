@@ -6,7 +6,6 @@ import { EventLog } from './EventLog'
 import { ObservabilityPanel } from './ObservabilityPanel'
 import { ChatPanel } from './chat/ChatPanel'
 import { matchScope } from '../lib/scopeMatcher'
-import { preloadSounds } from '../lib/soundPlayer'
 
 const MIN_HEIGHT = 120
 const DEFAULT_HEIGHT = 300
@@ -15,9 +14,6 @@ const MAX_HEIGHT_RATIO = 0.7
 type PanelView = 'terminal' | 'events' | 'observability' | 'chat'
 
 let terminalCounter = 0
-
-// Preload sounds on first import
-preloadSounds()
 
 export function TerminalPanel() {
   const LEGACY_CHAT_SESSION_ID = 'terminal-panel-chat'
