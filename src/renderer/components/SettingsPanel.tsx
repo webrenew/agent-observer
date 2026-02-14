@@ -398,6 +398,19 @@ export function SettingsPanel() {
                   </Row>
                 )}
               </Section>
+              <Section title="DIAGNOSTICS">
+                <Row label="Crash & health telemetry">
+                  <Toggle
+                    checked={draft.telemetry.enabled}
+                    onChange={(v) =>
+                      setDraft((d) => ({ ...d, telemetry: { ...d.telemetry, enabled: v } }))
+                    }
+                  />
+                </Row>
+                <div style={{ fontSize: 11, color: '#595653', lineHeight: 1.5 }}>
+                  Stores local crash and startup diagnostics in <code>~/.agent-space/telemetry.ndjson</code>.
+                </div>
+              </Section>
             </>
           )}
 

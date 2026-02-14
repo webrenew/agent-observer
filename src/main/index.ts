@@ -1,22 +1,94 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import path from 'path'
 import { setupTerminalHandlers, cleanupTerminals } from './terminal'
-import { setupSettingsHandlers, createApplicationMenu } from './settings'
+import { setupSettingsHandlers, createApplicationMenu, loadSettings } from './settings'
 import { setupClaudeSessionHandlers, cleanupClaudeSessions } from './claude-session'
 import { setupFilesystemHandlers } from './filesystem'
 import { setupLspHandlers, cleanupLspServers } from './lsp-manager'
 import { setupMemoriesHandlers, cleanupMemories } from './memories'
 import { setupAgentNamerHandlers } from './agent-namer'
+import {
+  addStartupBreadcrumb,
+  flushStartupBreadcrumbs,
+  getTelemetryLogPath,
+  recordException,
+  recordIpcRegistrationError,
+  recordIpcRuntimeError,
+  recordTelemetryEvent,
+} from './telemetry'
 
 // Strip Claude session env vars so embedded terminals can launch Claude Code
 for (const key of Object.keys(process.env)) {
   if (key.startsWith('CLAUDE')) delete process.env[key]
 }
 
+const userDataOverride = process.env['AGENT_SPACE_USER_DATA_DIR']
+if (typeof userDataOverride === 'string' && userDataOverride.trim().length > 0) {
+  app.setPath('userData', userDataOverride)
+}
+
+addStartupBreadcrumb('main.bootstrap.start', {
+  platform: process.platform,
+  pid: process.pid,
+  userDataPath: app.getPath('userData'),
+})
+
+try {
+  loadSettings()
+  addStartupBreadcrumb('settings.preload.success')
+} catch (err) {
+  recordException('settings.preload', err)
+}
+
+let processTelemetryAttached = false
+function setupProcessTelemetryListeners(): void {
+  if (processTelemetryAttached) return
+  processTelemetryAttached = true
+
+  process.on('uncaughtException', (error) => {
+    recordException('uncaughtException', error)
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    recordException('unhandledRejection', reason)
+  })
+}
+
+let ipcHandleWrapped = false
+function patchIpcHandleWithTelemetry(): void {
+  if (ipcHandleWrapped) return
+  ipcHandleWrapped = true
+
+  const originalHandle = ipcMain.handle.bind(ipcMain)
+  type InvokeHandler = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown | Promise<unknown>
+
+  ipcMain.handle = ((channel: string, listener: InvokeHandler) => {
+    addStartupBreadcrumb('ipc.handle.register', { channel })
+    try {
+      const wrapped: InvokeHandler = async (event, ...args) => {
+        try {
+          return await listener(event, ...args)
+        } catch (err) {
+          recordIpcRuntimeError(channel, err)
+          throw err
+        }
+      }
+      return originalHandle(channel, wrapped)
+    } catch (err) {
+      recordIpcRegistrationError(channel, err)
+      throw err
+    }
+  }) as typeof ipcMain.handle
+}
+
+setupProcessTelemetryListeners()
+patchIpcHandleWithTelemetry()
+
 // Track popped-out chat windows: sessionId → BrowserWindow
 const chatWindows = new Map<string, BrowserWindow>()
 
 function createChatWindow(sessionId: string, mainWindow: BrowserWindow): BrowserWindow {
+  addStartupBreadcrumb('chat.popout.create', { sessionId })
   const chatWin = new BrowserWindow({
     width: 600,
     height: 700,
@@ -53,6 +125,7 @@ function createChatWindow(sessionId: string, mainWindow: BrowserWindow): Browser
 
   chatWin.on('closed', () => {
     chatWindows.delete(sessionId)
+    recordTelemetryEvent('chat.popout.closed', { sessionId })
     // Notify main window the session was returned
     if (!mainWindow.isDestroyed()) {
       mainWindow.webContents.send('chat:returned', sessionId)
@@ -63,6 +136,7 @@ function createChatWindow(sessionId: string, mainWindow: BrowserWindow): Browser
 }
 
 const gotTheLock = app.requestSingleInstanceLock()
+addStartupBreadcrumb('app.single_instance_lock', { acquired: gotTheLock })
 
 if (!gotTheLock) {
   app.quit()
@@ -71,6 +145,7 @@ if (!gotTheLock) {
   let chatPopoutHandlerRegistered = false
 
   app.on('second-instance', () => {
+    recordTelemetryEvent('app.second_instance')
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -93,6 +168,19 @@ if (!gotTheLock) {
   }
 
   function createWindow(): void {
+    addStartupBreadcrumb('window.create.start')
+
+    const runStartupStep = (step: string, fn: () => void): void => {
+      addStartupBreadcrumb(`startup.${step}.start`)
+      try {
+        fn()
+        addStartupBreadcrumb(`startup.${step}.ok`)
+      } catch (err) {
+        recordException('startup.step_failed', err, { step })
+        throw err
+      }
+    }
+
     mainWindow = new BrowserWindow({
       width: 1400,
       height: 900,
@@ -113,34 +201,74 @@ if (!gotTheLock) {
       return { action: 'deny' }
     })
 
-    setupTerminalHandlers(mainWindow)
-    setupClaudeSessionHandlers(mainWindow)
-    setupSettingsHandlers()
-    setupFilesystemHandlers(mainWindow)
-    setupLspHandlers(mainWindow)
-    setupMemoriesHandlers()
-    setupAgentNamerHandlers(mainWindow)
-    createApplicationMenu(mainWindow)
-    setupChatPopoutHandler()
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+      recordTelemetryEvent('renderer.process_gone', {
+        reason: details.reason,
+        exitCode: details.exitCode,
+      })
+    })
 
-    if (process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    } else {
-      mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
-    }
+    runStartupStep('terminal_handlers', () => setupTerminalHandlers(mainWindow!))
+    runStartupStep('claude_handlers', () => setupClaudeSessionHandlers(mainWindow!))
+    runStartupStep('settings_handlers', () => setupSettingsHandlers())
+    flushStartupBreadcrumbs()
+    runStartupStep('filesystem_handlers', () => setupFilesystemHandlers(mainWindow!))
+    runStartupStep('lsp_handlers', () => setupLspHandlers(mainWindow!))
+    runStartupStep('memories_handlers', () => setupMemoriesHandlers())
+    runStartupStep('agent_namer_handlers', () => setupAgentNamerHandlers(mainWindow!))
+    runStartupStep('menu', () => createApplicationMenu(mainWindow!))
+    runStartupStep('chat_popout_handler', () => setupChatPopoutHandler())
+
+    const loadRendererPromise = process.env['ELECTRON_RENDERER_URL']
+      ? mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      : mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+
+    loadRendererPromise.catch((err) => {
+      recordException('window.load_failed', err)
+    })
+
+    addStartupBreadcrumb('window.create.done')
+    recordTelemetryEvent('window.created', { telemetryLogPath: getTelemetryLogPath() })
   }
 
   app.whenReady().then(() => {
+    addStartupBreadcrumb('app.ready')
+    recordTelemetryEvent('app.ready')
+
+    app.on('render-process-gone', (_event, webContents, details) => {
+      recordTelemetryEvent('app.render_process_gone', {
+        reason: details.reason,
+        exitCode: details.exitCode,
+        webContentsId: webContents.id,
+      })
+    })
+
+    app.on('child-process-gone', (_event, details) => {
+      recordTelemetryEvent('app.child_process_gone', {
+        type: details.type,
+        reason: details.reason,
+        exitCode: details.exitCode,
+        serviceName: details.serviceName,
+        name: details.name,
+      })
+    })
+
     createWindow()
 
     app.on('activate', () => {
+      recordTelemetryEvent('app.activate', {
+        windowCount: BrowserWindow.getAllWindows().length,
+      })
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow()
       }
     })
+  }).catch((err) => {
+    recordException('app.whenReady', err)
   })
 
   app.on('before-quit', () => {
+    recordTelemetryEvent('app.before_quit')
     // Close all popped-out chat windows first
     for (const [, win] of chatWindows) {
       if (!win.isDestroyed()) win.close()
@@ -154,6 +282,7 @@ if (!gotTheLock) {
   })
 
   app.on('window-all-closed', () => {
+    recordTelemetryEvent('app.window_all_closed', { platform: process.platform })
     if (process.platform !== 'darwin') {
       app.quit()
     }

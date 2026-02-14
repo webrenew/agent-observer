@@ -2,38 +2,7 @@ import { app, ipcMain, dialog, Menu, BrowserWindow } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-
-interface AppSettings {
-  general: {
-    startingDirectory: 'home' | 'custom'
-    customDirectory: string
-    shell: 'default' | 'custom'
-    customShell: string
-  }
-  appearance: {
-    fontFamily: string
-    fontSize: number
-    cursorStyle: 'block' | 'underline' | 'bar'
-    cursorBlink: boolean
-    terminalTheme: string
-  }
-  terminal: {
-    scrollbackLines: number
-    copyOnSelect: boolean
-    optionAsMeta: boolean
-    visualBell: boolean
-    audibleBell: boolean
-  }
-  scopes: unknown[]
-  defaultScope: {
-    id: string
-    name: string
-    color: string
-    directories: string[]
-    soundEvents: Record<string, string>
-  }
-  soundsEnabled: boolean
-}
+import type { AppSettings } from '../renderer/types'
 
 const DEFAULT_SETTINGS: AppSettings = {
   general: {
@@ -64,7 +33,15 @@ const DEFAULT_SETTINGS: AppSettings = {
     directories: [],
     soundEvents: {},
   },
+  subscription: {
+    type: 'api',
+    monthlyCost: 0,
+  },
   soundsEnabled: true,
+  yoloMode: false,
+  telemetry: {
+    enabled: false,
+  },
 }
 
 const SETTINGS_DIR = path.join(os.homedir(), '.agent-space')
@@ -90,7 +67,7 @@ function deepMerge(target: Record<string, unknown>, source: Record<string, unkno
   return result
 }
 
-function loadSettings(): AppSettings {
+export function loadSettings(): AppSettings {
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
       const raw = fs.readFileSync(SETTINGS_FILE, 'utf-8')

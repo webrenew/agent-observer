@@ -125,6 +125,9 @@ export interface AppSettings {
   defaultScope: Scope
   soundsEnabled: boolean
   yoloMode: boolean
+  telemetry: {
+    enabled: boolean
+  }
 }
 
 // ── Claude Chat Session Types ──────────────────────────────────────────
@@ -247,6 +250,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultScope: DEFAULT_SCOPE,
   soundsEnabled: true,
   yoloMode: false,
+  telemetry: {
+    enabled: false,
+  },
 }
 
 export interface AgentAppearance {

@@ -48,7 +48,7 @@ Last updated: 2026-02-14
 
 ## Phase 3 - Operational Maturity
 
-- [ ] **Crash and health telemetry (opt-in)**
+- [x] **Crash and health telemetry (opt-in)**
   - Goal: diagnose failures quickly.
   - Track:
     - uncaught exceptions

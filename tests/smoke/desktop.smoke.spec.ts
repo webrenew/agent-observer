@@ -5,12 +5,16 @@ import { test, expect, _electron as electron } from '@playwright/test'
 
 test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', async () => {
   let tempFolder: string | null = null
+  let tempUserDataDir: string | null = null
+  tempUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-space-userdata-'))
+
   const electronApp = await electron.launch({
     cwd: process.cwd(),
     args: ['.'],
     env: {
       ...process.env,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true',
+      AGENT_SPACE_USER_DATA_DIR: tempUserDataDir,
     },
   })
 
@@ -75,6 +79,9 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
   } finally {
     if (tempFolder) {
       await fs.rm(tempFolder, { recursive: true, force: true }).catch(() => {})
+    }
+    if (tempUserDataDir) {
+      await fs.rm(tempUserDataDir, { recursive: true, force: true }).catch(() => {})
     }
     await electronApp.close()
   }
