@@ -20,7 +20,7 @@ function AgentRow({ agent }: { agent: Agent }) {
         display: 'grid',
         gridTemplateColumns: '1fr auto auto auto',
         gap: 12,
-        fontSize: 13,
+        fontSize: 'inherit',
       }}
     >
       <span style={{ color: '#9A9692', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

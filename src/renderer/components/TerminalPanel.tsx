@@ -337,7 +337,7 @@ export function TerminalPanel() {
         ) : activeView === 'observability' ? (
           <ObservabilityPanel />
         ) : terminals.length === 0 ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#595653', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#595653', fontSize: 'inherit' }}>
             Click <span style={{ color: '#548C5A', margin: '0 4px', fontWeight: 700 }}>+</span> to open a terminal
           </div>
         ) : (

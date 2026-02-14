@@ -33,14 +33,14 @@ function ToolTaskCard({ message }: { message: ChatMessageType }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
           <span style={{ color: '#595653' }}>&#9474;</span>
-          <span className="glow-amber" style={{ color: '#d4a040', fontWeight: 600, fontSize: 13 }}>
+          <span className="glow-amber" style={{ color: '#d4a040', fontWeight: 600, fontSize: 'inherit' }}>
             {toolLabel}
           </span>
           {message.toolInput && (
             <span
               style={{
                 color: '#74747C',
-                fontSize: 13,
+                fontSize: 'inherit',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -177,7 +177,7 @@ function AssistantContent({ text }: { text: string }) {
     // Regular text
     else {
       elements.push(
-        <p key={i} style={{ color: '#9A9692', margin: '4px 0', fontSize: 13 }}>
+        <p key={i} style={{ color: '#9A9692', margin: '4px 0', fontSize: 'inherit' }}>
           {trimmed}
         </p>
       )
@@ -205,7 +205,7 @@ export function ChatMessageBubble({ message }: Props) {
         <span
           style={{
             color: '#74747C',
-            fontSize: 13,
+            fontSize: 'inherit',
             fontStyle: 'italic',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -230,7 +230,7 @@ export function ChatMessageBubble({ message }: Props) {
             borderRadius: 4,
             padding: '6px 12px',
             color: '#c45050',
-            fontSize: 13,
+            fontSize: 'inherit',
           }}
         >
           {message.content}
@@ -263,7 +263,7 @@ export function ChatMessageBubble({ message }: Props) {
             style={{
               color: isAssistant ? '#d4a040' : '#74747C',
               fontWeight: 600,
-              fontSize: 13,
+              fontSize: 'inherit',
             }}
           >
             {isAssistant ? 'claude' : 'you'}
@@ -275,7 +275,7 @@ export function ChatMessageBubble({ message }: Props) {
       {/* Content */}
       <div style={{ paddingLeft: isAssistant ? 8 : 16 }}>
         {isUser ? (
-          <p className="glow-green" style={{ color: '#548C5A', margin: '4px 0', fontSize: 13 }}>
+          <p className="glow-green" style={{ color: '#548C5A', margin: '4px 0', fontSize: 'inherit' }}>
             {message.content}
           </p>
         ) : (

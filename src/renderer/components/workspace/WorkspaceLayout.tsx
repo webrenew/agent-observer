@@ -129,17 +129,17 @@ function TopNav({
         {workspaceName && (
           <span style={{ color: '#9A9692', fontSize: 12, fontWeight: 500 }}>{workspaceName}</span>
         )}
-        <span style={{ color: '#595653', fontSize: 13 }}>|</span>
+        <span style={{ color: '#595653', fontSize: 'inherit' }}>|</span>
         <nav style={{ display: 'flex', gap: 14 }}>
           {['File', 'Edit'].map((item) => (
-            <span key={item} className="nav-item" style={{ color: '#74747C', fontSize: 13 }}>{item}</span>
+            <span key={item} className="nav-item" style={{ color: '#74747C', fontSize: 'inherit' }}>{item}</span>
           ))}
           {/* View dropdown */}
           <div ref={viewMenuRef} style={{ position: 'relative', zIndex: 9999 }}>
             <span
               className="nav-item"
               onClick={() => setShowViewMenu((v) => !v)}
-              style={{ color: '#74747C', fontSize: 13 }}
+              style={{ color: '#74747C', fontSize: 'inherit' }}
             >
               View
             </span>
@@ -182,12 +182,12 @@ function TopNav({
               </>
             )}
           </div>
-          <span className="nav-item" onClick={openSettings} style={{ color: '#74747C', fontSize: 13 }} title={`Settings (${SHORTCUTS.openSettings.label})`}>
+          <span className="nav-item" onClick={openSettings} style={{ color: '#74747C', fontSize: 'inherit' }} title={`Settings (${SHORTCUTS.openSettings.label})`}>
             Settings
           </span>
         </nav>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#74747C', fontSize: 13 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#74747C', fontSize: 'inherit' }}>
         <span className="glow-amber" style={{ color: '#9A9692' }}>agent-space</span>
         <span style={{ color: '#595653' }}>|</span>
         <span><strong style={{ color: '#9A9692' }}>{agentCount}</strong> agents</span>

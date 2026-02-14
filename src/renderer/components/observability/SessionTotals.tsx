@@ -16,7 +16,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{ fontSize: 10, color: '#74747C', fontWeight: 600, letterSpacing: 1 }}>{label}</span>
-      <span style={{ fontFamily: 'inherit', fontWeight: 600, fontSize: 13, color: color ?? '#9A9692' }}>
+      <span style={{ fontFamily: 'inherit', fontWeight: 600, fontSize: 'inherit', color: color ?? '#9A9692' }}>
         {value}
       </span>
     </div>
@@ -47,7 +47,7 @@ export function SessionTotals({ agents }: Props) {
     <div
       style={{
         borderTop: '1px solid rgba(89,86,83,0.2)', padding: '8px 16px',
-        display: 'flex', alignItems: 'center', gap: 20, fontSize: 13,
+        display: 'flex', alignItems: 'center', gap: 20, fontSize: 'inherit',
         background: 'rgba(14,14,13,0.6)', flexShrink: 0,
       }}
     >

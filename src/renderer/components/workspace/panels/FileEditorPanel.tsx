@@ -10,6 +10,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import Editor, { type OnMount, type Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { useLspBridge } from '../../../hooks/useLspBridge'
+import { useSettingsStore } from '../../../store/settings'
 
 // ── Language detection ────────────────────────────────────────────────
 
@@ -277,11 +278,12 @@ export function FileEditorPanel() {
       esModuleInterop: true,
     })
 
+    const { appearance } = useSettingsStore.getState().settings
     editor.updateOptions({
       minimap: { enabled: false },
-      fontSize: 13,
-      lineHeight: 20,
-      fontFamily: '"SF Mono", Menlo, "Fira Code", monospace',
+      fontSize: appearance.fontSize,
+      lineHeight: Math.round(appearance.fontSize * 1.54),
+      fontFamily: appearance.fontFamily,
       fontLigatures: true,
       padding: { top: 8, bottom: 8 },
       scrollBeyondLastLine: false,
@@ -296,6 +298,21 @@ export function FileEditorPanel() {
       tabSize: 2,
     })
   }
+
+  // Live-update Monaco when appearance settings change
+  useEffect(() => {
+    const unsub = useSettingsStore.subscribe((state) => {
+      const ed = editorRef.current
+      if (!ed) return
+      const { fontFamily: ff, fontSize: fs } = state.settings.appearance
+      ed.updateOptions({
+        fontSize: fs,
+        lineHeight: Math.round(fs * 1.54),
+        fontFamily: ff,
+      })
+    })
+    return unsub
+  }, [])
 
   const handleEditorChange = useCallback((value: string | undefined) => {
     if (value === undefined) return

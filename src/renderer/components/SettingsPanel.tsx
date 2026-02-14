@@ -404,7 +404,7 @@ export function SettingsPanel() {
           {activeTab === 'appearance' && (
             <>
               <Section title="THEME">
-                <Row label="Terminal theme">
+                <Row label="Theme">
                   <Select
                     value={draft.appearance.terminalTheme}
                     options={THEME_NAMES as unknown as string[]}

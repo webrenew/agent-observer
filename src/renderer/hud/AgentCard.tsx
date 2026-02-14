@@ -55,7 +55,7 @@ export function AgentCard() {
         {STATUS_LABELS[agent.status]}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 'inherit' }}>
         <Row label="Task" value={agent.currentTask} />
         <Row label="Model" value={agent.model} />
         <Row label="Tokens In" value={agent.tokens_input.toLocaleString()} />

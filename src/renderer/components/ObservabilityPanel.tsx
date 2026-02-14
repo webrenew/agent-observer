@@ -20,7 +20,7 @@ export function ObservabilityPanel() {
         {selected ? (
           <AgentTokenDetail agent={selected} />
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#595653', fontSize: 13 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#595653', fontSize: 'inherit' }}>
             No active agents
           </div>
         )}

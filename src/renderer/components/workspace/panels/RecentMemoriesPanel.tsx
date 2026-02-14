@@ -54,7 +54,7 @@ export function RecentMemoriesPanel() {
               <span
                 style={{
                   color: '#9A9692',
-                  fontSize: 13,
+                  fontSize: 'inherit',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',

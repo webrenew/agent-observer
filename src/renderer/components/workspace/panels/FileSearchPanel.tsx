@@ -113,7 +113,7 @@ export function FileSearchPanel({ onOpenFile }: Props) {
         display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
         borderBottom: '1px solid rgba(89,86,83,0.2)', flexShrink: 0,
       }}>
-        <span style={{ color: '#595653', fontSize: 13, flexShrink: 0 }}>⌕</span>
+        <span style={{ color: '#595653', fontSize: 'inherit', flexShrink: 0 }}>⌕</span>
         <input
           ref={inputRef}
           data-file-search-input
@@ -124,7 +124,7 @@ export function FileSearchPanel({ onOpenFile }: Props) {
           placeholder="Search files..."
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            color: '#9A9692', fontSize: 13, fontFamily: 'inherit',
+            color: '#9A9692', fontSize: 'inherit', fontFamily: 'inherit',
           }}
         />
         {isSearching && (

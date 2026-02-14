@@ -51,7 +51,7 @@ function ToastItem({
       className="glass-panel animate-in"
       style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
-        borderRadius: 8, border: borderForType(type), fontSize: 13, minWidth: 240,
+        borderRadius: 8, border: borderForType(type), fontSize: 'inherit', minWidth: 240,
       }}
     >
       <span style={{ fontSize: 12, color: iconColorForType(type) }}>

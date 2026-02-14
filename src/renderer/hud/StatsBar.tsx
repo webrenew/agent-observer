@@ -34,7 +34,7 @@ export function StatsBar() {
       className="glass-panel"
       style={{
         display: 'flex', alignItems: 'center', gap: 20, padding: '6px 16px',
-        borderRadius: '0 0 8px 8px', borderTop: 'none', fontSize: 13,
+        borderRadius: '0 0 8px 8px', borderTop: 'none', fontSize: 'inherit',
       }}
     >
       <Stat label="Active" value={activeCount} color="#548C5A" />

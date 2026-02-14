@@ -166,7 +166,7 @@ export function ChatInput({ onSend, isRunning, onStop }: Props) {
             background: 'transparent',
             border: 'none',
             color: '#9A9692',
-            fontSize: 13,
+            fontSize: 'inherit',
             fontFamily: 'inherit',
             outline: 'none',
             resize: 'none',

@@ -36,7 +36,7 @@ function TypingIndicator() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0 8px 8px' }}>
       <span style={{ fontSize: 14 }}>👾</span>
-      <span className="glow-amber" style={{ color: '#d4a040', fontWeight: 600, fontSize: 13 }}>
+      <span className="glow-amber" style={{ color: '#d4a040', fontWeight: 600, fontSize: 'inherit' }}>
         claude
       </span>
       <div style={{ display: 'flex', gap: 3, marginLeft: 8 }}>
@@ -671,7 +671,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             }}
           >
             <span style={{ fontSize: 24 }}>👾</span>
-            <span style={{ color: '#74747C', fontSize: 13 }}>Ask Claude anything</span>
+            <span style={{ color: '#74747C', fontSize: 'inherit' }}>Ask Claude anything</span>
             <span style={{ color: '#595653', fontSize: 11 }}>
               {workingDir ? `Working in ${cwdLabel}` : 'Powered by Claude Code CLI'}
             </span>
