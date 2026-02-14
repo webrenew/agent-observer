@@ -63,6 +63,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [fallbackWorkingDir, setFallbackWorkingDir] = useState<string | null>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
+  const activeClaudeSessionIdRef = useRef<string | null>(null)
   const agentIdRef = useRef<string | null>(null)
   const activeRunDirectoryRef = useRef<string | null>(null)
   const subagentSeatCounter = useRef(0)
@@ -88,6 +89,11 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const isHistoryLoaded = useChatHistoryStore((s) => s.isLoaded)
   const [showRecentMenu, setShowRecentMenu] = useState(false)
   const recentMenuRef = useRef<HTMLDivElement>(null)
+
+  const setActiveClaudeSession = useCallback((sessionId: string | null) => {
+    activeClaudeSessionIdRef.current = sessionId
+    setClaudeSessionId(sessionId)
+  }, [])
 
   const workingDir = chatSession ? chatSession.workingDirectory : fallbackWorkingDir
   const isDirectoryCustom = chatSession ? chatSession.directoryMode === 'custom' : false
@@ -271,7 +277,8 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   // Handle incoming Claude events
   useEffect(() => {
     const unsub = window.electronAPI.claude.onEvent((event: ClaudeEvent) => {
-      if (claudeSessionId && event.sessionId !== claudeSessionId) return
+      const activeSessionId = activeClaudeSessionIdRef.current
+      if (!activeSessionId || event.sessionId !== activeSessionId) return
 
       const agentId = agentIdRef.current
 
@@ -493,7 +500,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             })
           }
 
-          setClaudeSessionId(null)
+          setActiveClaudeSession(null)
           activeRunDirectoryRef.current = null
           break
         }
@@ -514,7 +521,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           if (agentId) {
             updateAgent(agentId, { status: 'error', isClaudeRunning: false })
           }
-          setClaudeSessionId(null)
+          setActiveClaudeSession(null)
           activeRunDirectoryRef.current = null
           break
         }
@@ -522,7 +529,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     })
 
     return unsub
-  }, [claudeSessionId, updateAgent, addEvent, persistMessage])
+  }, [addEvent, persistMessage, setActiveClaudeSession, updateAgent])
 
   const handleSend = useCallback(
     async (message: string, files?: File[]) => {
@@ -666,7 +673,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           workingDirectory: effectiveWorkingDir ?? undefined,
           dangerouslySkipPermissions: yoloMode,
         })
-        setClaudeSessionId(result.sessionId)
+        setActiveClaudeSession(result.sessionId)
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err)
         console.error(`Failed to start Claude session: ${errMsg}`)
@@ -709,13 +716,13 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       console.error(`Failed to stop Claude session: ${errMsg}`)
     }
     setStatus('done')
-    setClaudeSessionId(null)
+    setActiveClaudeSession(null)
     activeRunDirectoryRef.current = null
 
     if (agentIdRef.current) {
       updateAgent(agentIdRef.current, { status: 'done', isClaudeRunning: false })
     }
-  }, [claudeSessionId, updateAgent])
+  }, [claudeSessionId, setActiveClaudeSession, updateAgent])
 
   const isRunning = isRunActive
 
