@@ -251,11 +251,13 @@ function ServerRack({
 
 function Plant({
   position,
+  scale = 1,
 }: {
   position: [number, number, number];
+  scale?: number;
 }) {
   return (
-    <group position={position}>
+    <group position={position} scale={scale}>
       {/* Pot */}
       <mesh position={[0, 0.2, 0]} castShadow>
         <cylinderGeometry args={[0.2, 0.15, 0.4, 8]} />
@@ -273,6 +275,45 @@ function Plant({
           <meshStandardMaterial color={i % 2 === 0 ? "#22C55E" : "#16A34A"} />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+function WallWindow({
+  position,
+  rotation = [0, 0, 0],
+  width = 2,
+  height = 1.4,
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  width?: number;
+  height?: number;
+}) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh castShadow>
+        <boxGeometry args={[width + 0.25, height + 0.25, 0.06]} />
+        <meshStandardMaterial color="#6B5A48" />
+      </mesh>
+      <mesh position={[0, 0, 0.025]}>
+        <boxGeometry args={[width, height, 0.02]} />
+        <meshStandardMaterial
+          color="#93C5FD"
+          emissive="#7DD3FC"
+          emissiveIntensity={0.35}
+          transparent
+          opacity={0.8}
+        />
+      </mesh>
+      <mesh position={[0, 0, 0.035]}>
+        <boxGeometry args={[0.08, height, 0.03]} />
+        <meshStandardMaterial color="#5A4632" />
+      </mesh>
+      <mesh position={[0, 0, 0.035]}>
+        <boxGeometry args={[width, 0.08, 0.03]} />
+        <meshStandardMaterial color="#5A4632" />
+      </mesh>
     </group>
   );
 }
@@ -329,16 +370,27 @@ export function Office() {
         <boxGeometry args={[22, 4, 0.2]} />
         <meshStandardMaterial color={WALL_COLOR} />
       </mesh>
-      {/* Window cutouts on back wall */}
-      {[-5, 0, 5].map((x, i) => (
-        <mesh key={i} position={[x, 2.5, -13.89]}>
-          <boxGeometry args={[2, 1.5, 0.05]} />
-          <meshStandardMaterial
-            color="#87CEEB"
-            emissive="#87CEEB"
-            emissiveIntensity={0.3}
-          />
-        </mesh>
+      {/* Windows kept parallel to wall planes */}
+      {[-7.2, -2.4, 2.4, 7.2].map((x) => (
+        <WallWindow key={`back-window-${x}`} position={[x, 2.45, -13.88]} />
+      ))}
+      {[-10.2, -5.4].map((z) => (
+        <WallWindow
+          key={`left-window-${z}`}
+          position={[-10.88, 2.35, z]}
+          rotation={[0, Math.PI / 2, 0]}
+          width={1.8}
+          height={1.25}
+        />
+      ))}
+      {[-10.2, -5.4].map((z) => (
+        <WallWindow
+          key={`right-window-${z}`}
+          position={[10.88, 2.35, z]}
+          rotation={[0, -Math.PI / 2, 0]}
+          width={1.8}
+          height={1.25}
+        />
       ))}
 
       {/* Left wall */}
@@ -470,11 +522,21 @@ export function Office() {
       {/* Server rack */}
       <ServerRack position={[9.5, 1, -12]} />
 
-      {/* Plants in corners */}
-      <Plant position={[-10, 0, -13]} />
-      <Plant position={[10, 0, -13]} />
-      <Plant position={[-10, 0, 3]} />
-      <Plant position={[10, 0, 3]} />
+      {/* Plants throughout the office */}
+      {[
+        { position: [-10, 0, -13] as [number, number, number], scale: 1.15 },
+        { position: [10, 0, -13] as [number, number, number], scale: 1.15 },
+        { position: [-10, 0, 3] as [number, number, number], scale: 1.1 },
+        { position: [10, 0, 3] as [number, number, number], scale: 1.1 },
+        { position: [-3.4, 0, -13.1] as [number, number, number], scale: 0.9 },
+        { position: [3.4, 0, -13.1] as [number, number, number], scale: 0.9 },
+        { position: [-10.05, 0, -5.2] as [number, number, number], scale: 0.85 },
+        { position: [10.05, 0, -5.2] as [number, number, number], scale: 0.85 },
+        { position: [0, 0, 2.8] as [number, number, number], scale: 0.95 },
+        { position: [6.8, 0, -11.3] as [number, number, number], scale: 0.75 },
+      ].map((plant, index) => (
+        <Plant key={`office-plant-${index}`} position={plant.position} scale={plant.scale} />
+      ))}
 
       {/* Whiteboard */}
       <group position={[2, 1.5, -13.85]}>
