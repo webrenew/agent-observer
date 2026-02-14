@@ -70,6 +70,7 @@ export interface Toast {
 let toastCounter = 0
 let eventCounter = 0
 const CHAT_STATE_KEY = 'agent-space:chatState'
+const TEMP_SMOKE_PATTERN = /(?:^|\/)agent-space-smoke-[^/]+(?:\/|$)/
 
 interface PersistedChatSession {
   id: string
@@ -88,6 +89,18 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+function normalizePath(value: string | null | undefined): string | null {
+  if (!value) return null
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function isEphemeralSmokeWorkspace(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/')
+  if (!TEMP_SMOKE_PATTERN.test(normalized)) return false
+  return normalized.startsWith('/var/folders/') || normalized.startsWith('/tmp/')
+}
+
 function normalizePersistedChatSession(value: unknown): PersistedChatSession | null {
   if (!isObject(value)) return null
   const id = typeof value.id === 'string' ? value.id.trim() : ''
@@ -96,8 +109,14 @@ function normalizePersistedChatSession(value: unknown): PersistedChatSession | n
   const labelRaw = typeof value.label === 'string' ? value.label.trim() : ''
   const label = labelRaw.length > 0 ? labelRaw : 'Chat'
   const scopeId = typeof value.scopeId === 'string' ? value.scopeId : null
-  const workingDirectory = typeof value.workingDirectory === 'string' ? value.workingDirectory : null
-  const directoryMode = value.directoryMode === 'custom' ? 'custom' : 'workspace'
+  const workingDirectoryCandidate = normalizePath(
+    typeof value.workingDirectory === 'string' ? value.workingDirectory : null
+  )
+  const workingDirectory = workingDirectoryCandidate && !isEphemeralSmokeWorkspace(workingDirectoryCandidate)
+    ? workingDirectoryCandidate
+    : null
+  let directoryMode: 'workspace' | 'custom' = value.directoryMode === 'custom' ? 'custom' : 'workspace'
+  if (!workingDirectory && directoryMode === 'custom') directoryMode = 'workspace'
 
   return {
     id,
@@ -148,13 +167,22 @@ function savePersistedChatState(
   activeChatSessionId: string | null
 ): void {
   try {
-    const sessions: PersistedChatSession[] = chatSessions.map((session) => ({
-      id: session.id,
-      label: session.label,
-      scopeId: session.scopeId,
-      workingDirectory: session.workingDirectory,
-      directoryMode: session.directoryMode,
-    }))
+    const sessions: PersistedChatSession[] = chatSessions.map((session) => {
+      const workingDirectoryCandidate = normalizePath(session.workingDirectory)
+      const workingDirectory = workingDirectoryCandidate && !isEphemeralSmokeWorkspace(workingDirectoryCandidate)
+        ? workingDirectoryCandidate
+        : null
+      const directoryMode: 'workspace' | 'custom' =
+        workingDirectory && session.directoryMode === 'custom' ? 'custom' : 'workspace'
+
+      return {
+        id: session.id,
+        label: session.label,
+        scopeId: session.scopeId,
+        workingDirectory,
+        directoryMode,
+      }
+    })
 
     const payload: PersistedChatState = {
       sessions,
