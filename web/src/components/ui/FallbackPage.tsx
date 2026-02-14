@@ -1,5 +1,7 @@
 "use client";
 
+import { AGENT_SPACE_RELEASES_URL } from "@/lib/downloads";
+
 const FEATURES = [
   {
     name: "Desktop-grade HUD",
@@ -105,7 +107,9 @@ export function FallbackPage() {
 
         <div className="mt-8 flex flex-wrap items-center gap-10">
           <a
-            href="/docs/quickstart"
+            href={AGENT_SPACE_RELEASES_URL}
+            target="_blank"
+            rel="noreferrer"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -119,7 +123,23 @@ export function FallbackPage() {
               fontWeight: 600,
             }}
           >
-            Open quickstart →
+            Download desktop app →
+          </a>
+          <a
+            href="#download"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              border: "1px solid rgba(212,160,64,0.34)",
+              color: "#d4a040",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            Install steps ↓
           </a>
           <span style={{ color: "#595653", fontSize: 11 }}>
             Tip: enable hardware acceleration or open in a WebGL-capable browser.

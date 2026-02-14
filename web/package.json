@@ -3,32 +3,42 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
+    "dev": "next dev",
+    "build": "next build --webpack",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --max-warnings=0",
+    "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
     "@react-three/fiber": "^9.1.0",
     "@react-three/rapier": "^2.1.0",
     "framer-motion": "^12.0.0",
-    "next": "^15.3.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "fumadocs-core": "^16.6.1",
+    "fumadocs-mdx": "^14.2.7",
+    "fumadocs-ui": "^16.6.1",
+    "next": "^16.1.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "three": "^0.175.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@next/eslint-plugin-next": "16.1.6",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@types/three": "^0.175.0",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "^15.5.12",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.1.6",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "globals": "17.3.0",
     "postcss": "^8.5.0",
     "tailwindcss": "^4.1.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "typescript-eslint": "8.46.2"
   }
 }

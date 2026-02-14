@@ -1,0 +1,33 @@
+---
+title: Troubleshooting
+description: Common issues and quick fixes for Agent Space desktop and web.
+---
+
+# Troubleshooting
+
+## App opens in temp directory
+
+Symptom: workspace resolves to a temp path like `/var/folders/.../agent-space-smoke-*`.
+
+Fix:
+
+1. Set default app workspace to your intended directory (for example `/Users/tradecraft/dev`).
+2. Reopen workspace from Explorer and verify path in scope indicator.
+
+## Blue screen / renderer crash
+
+1. Restart app.
+2. Reopen one workspace first.
+3. Check local logs for renderer/main process errors.
+4. If reproducible, capture steps and last action before crash.
+
+## Search missing expected files
+
+1. Confirm workspace root is correct.
+2. Verify excluded directories are not your target paths.
+3. Grant missing file permissions in macOS privacy settings.
+
+## Duplicate active agents
+
+If one chat appears as multiple office agents, refresh session state or restart app and verify single active thread.
+

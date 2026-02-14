@@ -1,0 +1,4 @@
+import { SITE_REPO_URL, SITE_RELEASES_URL } from "@/lib/site";
+
+export const AGENT_SPACE_REPO_URL = SITE_REPO_URL;
+export const AGENT_SPACE_RELEASES_URL = SITE_RELEASES_URL;

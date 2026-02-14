@@ -1,0 +1,22 @@
+---
+title: Monitoring
+description: Observe agent state, activity, and token consumption in real time.
+---
+
+# Monitoring
+
+Agent Space provides live telemetry during chat and tool execution.
+
+## What You Can Monitor
+
+- Agent status transitions (`thinking`, `tool_calling`, `done`, `error`)
+- Timeline actions and recency
+- Token input/output totals
+- File modifications and active task context
+
+## Operational Notes
+
+- Activity labels should match action types (for example, `CRON` is only for scheduled runs).
+- A single chat should correspond to one active office agent unless multi-agent mode is intentionally enabled.
+- Token counters should move with chat/tool events and remain zero only when no model calls were made.
+

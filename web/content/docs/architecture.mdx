@@ -1,0 +1,22 @@
+---
+title: Architecture
+description: High-level architecture for the desktop app and mirrored web interface.
+---
+
+# Architecture
+
+Agent Space combines an Electron desktop runtime with a Next.js web surface.
+
+## High Level
+
+- **Desktop**: Electron + renderer panels for chat, explorer, terminal, and office scene.
+- **Web**: Next.js site mirroring visual language and product capabilities.
+- **State**: workspace-first context and agent telemetry stores.
+
+## Design Principles
+
+- Keep project scope explicit and visible.
+- Preserve local-first behavior.
+- Make operational state legible at a glance.
+- Keep desktop and web mental models aligned.
+

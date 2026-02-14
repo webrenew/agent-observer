@@ -1,3 +1,6 @@
+import { AGENT_SPACE_RELEASES_URL } from "@/lib/downloads";
+import Link from "next/link";
+
 const FEATURES = [
   {
     id: "dispatcher",
@@ -91,13 +94,13 @@ export function ContentSection() {
                 Product Overview
               </span>
             </div>
-            <a
+            <Link
               href="/docs/quickstart"
               className="nav-item"
               style={{ color: "#548C5A", fontSize: 12, fontWeight: 600 }}
             >
               Open docs →
-            </a>
+            </Link>
           </div>
 
           <h2
@@ -201,7 +204,7 @@ export function ContentSection() {
               >
                 {feature.text}
               </p>
-              <a
+              <Link
                 href={feature.cta.href}
                 className="nav-item"
                 style={{
@@ -211,9 +214,116 @@ export function ContentSection() {
                 }}
               >
                 {feature.cta.label} →
-              </a>
+              </Link>
             </article>
           ))}
+        </div>
+
+        <div
+          id="download"
+          className="glass-panel mt-8"
+          style={{
+            borderRadius: 12,
+            border: "1px solid rgba(84,140,90,0.32)",
+            padding: "18px 18px 16px",
+            background:
+              "linear-gradient(180deg, rgba(20,24,21,0.92), rgba(12,14,13,0.9)), radial-gradient(circle at 85% 10%, rgba(84,140,90,0.18), transparent 40%)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 16, letterSpacing: 1 }}>⬢</span>
+              <span
+                style={{
+                  color: "#7fb887",
+                  fontSize: 10,
+                  letterSpacing: 1,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                }}
+              >
+                Desktop Install
+              </span>
+            </div>
+            <span style={{ color: "#595653", fontSize: 11 }}>
+              Current packaged target: macOS (Apple Silicon)
+            </span>
+          </div>
+
+          <h3
+            style={{
+              margin: "0 0 8px",
+              color: "#9A9692",
+              fontSize: "clamp(18px, 2.8vw, 28px)",
+              lineHeight: 1.2,
+            }}
+          >
+            Download Agent Space and install in under a minute.
+          </h3>
+          <p
+            style={{
+              margin: "0 0 12px",
+              color: "#74747C",
+              fontSize: "clamp(12px, 1.7vw, 14px)",
+              maxWidth: 880,
+            }}
+          >
+            Get the latest desktop release from GitHub, open the DMG, and drag
+            Agent Space into your Applications folder.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-8">
+            <a
+              href={AGENT_SPACE_RELEASES_URL}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                background: "rgba(84,140,90,0.2)",
+                border: "1px solid rgba(84,140,90,0.42)",
+                color: "#7fb887",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              Download latest build →
+            </a>
+            <a
+              href="#install-checklist"
+              className="nav-item"
+              style={{ color: "#d4a040", fontSize: 12, fontWeight: 600 }}
+            >
+              View install checklist ↓
+            </a>
+          </div>
+
+          <ol
+            id="install-checklist"
+            style={{
+              margin: "14px 0 0",
+              paddingLeft: 18,
+              color: "#74747C",
+              fontSize: 12,
+              lineHeight: 1.6,
+            }}
+          >
+            <li>Open the latest release page and download the `.dmg` installer.</li>
+            <li>Open the DMG, then drag Agent Space into `Applications`.</li>
+            <li>Launch Agent Space from Applications and approve requested permissions.</li>
+          </ol>
         </div>
       </div>
     </section>

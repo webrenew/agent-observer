@@ -30,6 +30,7 @@ build/
 
 # Next.js
 web/.next/
+web/.source/
 
 # Playwright
 playwright-report/

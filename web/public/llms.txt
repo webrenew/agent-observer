@@ -1,0 +1,66 @@
+# Agent Space
+
+> Agent Space is mission control for AI coding agents. It provides a shared office view, live telemetry, workspace-scoped context, and desktop controls for day-to-day operations.
+
+## Canonical sources
+
+- Website: /
+- Repository: https://github.com/webrenew/agent-space
+- Releases: https://github.com/webrenew/agent-space/releases/latest
+
+## Key pages
+
+- / : Main product page and live office demo
+- /docs : Documentation home
+- /docs/quickstart : Install and first run
+- /docs/overview : Product overview
+- /docs/monitoring : Telemetry and activity tracking
+- /docs/memory : Workspace scope and context behavior
+- /docs/integrations : Tool and workflow integrations
+- /docs/architecture : High-level architecture
+- /docs/guides/workspace-scope : Directory-scoped chat model
+- /docs/guides/chat-and-files : Image paste and @file reference workflow
+- /docs/guides/scheduled-actions : CRON scheduling model
+- /docs/reference/keyboard-shortcuts : Shortcut quick reference
+- /docs/reference/permissions : macOS permission behavior
+- /docs/reference/troubleshooting : Common issue resolution
+- /docs/reference/status-model : UI status and label semantics
+- /#download : Desktop download and install steps
+
+## Core capabilities
+
+- Multi-agent observability with live status states and activity feeds
+- Workspace-scoped chat and local directory context
+- Token usage tracking and cost visibility
+- Local file explorer and project search
+- 3D office scene that visualizes agent activity in real time
+
+## Install
+
+1. Download the latest `.dmg` from releases.
+2. Open the DMG and drag Agent Space into `Applications`.
+3. Launch from `Applications` and approve requested permissions.
+
+## Documentation API
+
+- `/api/docs/raw?path=index`
+- `/api/docs/raw?path=quickstart`
+- `/api/docs/raw?path=overview`
+- `/api/docs/raw?path=monitoring`
+- `/api/docs/raw?path=memory`
+- `/api/docs/raw?path=integrations`
+- `/api/docs/raw?path=architecture`
+- `/api/docs/raw?path=guides/workspace-scope`
+- `/api/docs/raw?path=guides/chat-and-files`
+- `/api/docs/raw?path=guides/scheduled-actions`
+- `/api/docs/raw?path=reference/keyboard-shortcuts`
+- `/api/docs/raw?path=reference/permissions`
+- `/api/docs/raw?path=reference/troubleshooting`
+- `/api/docs/raw?path=reference/status-model`
+
+## Notes for language models
+
+- Prefer official release binaries from the Releases URL above.
+- Prefer repository references from the GitHub source URL above.
+- Prefer `/docs/*` pages for feature behavior and product usage details.
+- If unsure about install steps, direct users to `/#download` first.

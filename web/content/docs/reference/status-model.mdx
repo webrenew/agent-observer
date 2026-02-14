@@ -1,0 +1,30 @@
+---
+title: Status Model
+description: Agent states and activity labels used across the UI.
+---
+
+# Status Model
+
+Agent Space keeps status language consistent across chat, office, and timeline views.
+
+## Agent States
+
+- `idle`: no active work
+- `thinking`: model planning/analysis in progress
+- `tool_calling`: executing tool actions
+- `streaming`: actively generating output
+- `waiting`: blocked on external input/state
+- `done`: task completed successfully
+- `error`: task failed or stopped with issue
+
+## Activity Labels
+
+- `Read`, `Write`, `Edit`, `Grep`, `Tool`, and similar labels reflect actual actions.
+- `CRON` is reserved for scheduled repeated tasks only.
+
+## Consistency Rules
+
+- Labels should match underlying event type.
+- Token and activity updates should stay in sync.
+- Office active-agent count should reflect active chat sessions.
+

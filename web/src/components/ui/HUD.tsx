@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useDemoStore } from "@/stores/useDemoStore";
 import { STATUS_LABELS, AGENT_COLORS } from "@/types";
 import type { AgentStatus } from "@/types";
 import type { CelebrationType } from "@/types";
+import { AGENT_SPACE_RELEASES_URL } from "@/lib/downloads";
 import { Minimap } from "./Minimap";
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
@@ -194,12 +196,19 @@ function TopBar({
           <span className="nav-item" style={{ color: "#74747C", fontSize: 12 }}>
             View
           </span>
-          <a
+          <Link
             className="nav-item"
-            href="#features"
+            href="/docs"
             style={{ color: "#74747C", fontSize: 12 }}
           >
             Docs
+          </Link>
+          <a
+            className="nav-item"
+            href="#download"
+            style={{ color: "#74747C", fontSize: 12 }}
+          >
+            Install
           </a>
         </nav>
       </div>
@@ -539,8 +548,16 @@ export function HUD() {
           <span>
             tokens <strong style={{ color: "#9A9692" }}>{formatTokens(totalTokens)}</strong>
           </span>
-          <a href="#features" style={{ color: "#548C5A", fontWeight: 600 }}>
+          <Link href="/docs" style={{ color: "#548C5A", fontWeight: 600 }}>
             docs
+          </Link>
+          <a
+            href={AGENT_SPACE_RELEASES_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "#d4a040", fontWeight: 600 }}
+          >
+            install
           </a>
         </div>
       </div>

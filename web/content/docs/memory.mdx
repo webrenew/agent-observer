@@ -1,0 +1,21 @@
+---
+title: Memory
+description: How workspace scope and context persistence are handled in Agent Space.
+---
+
+# Memory and Scope
+
+Agent Space keeps chat context grounded to the selected workspace.
+
+## Scope Model
+
+- **Workspace mode**: default scope follows opened project directory.
+- **Custom directory mode**: user can explicitly set chat scope for multi-project usage.
+- **Pre-message scoping**: scope is resolved before first user message when opening folders.
+
+## Best Practices
+
+- Keep one chat per project scope when possible.
+- Use explicit scope switching for cross-repo work.
+- Validate scope indicator before prompting long-running tasks.
+

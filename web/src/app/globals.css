@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
 
 :root {
   --as-bg: #0e0e0d;

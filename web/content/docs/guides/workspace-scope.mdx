@@ -1,0 +1,31 @@
+---
+title: Workspace Scope
+description: Keep each chat and agent run scoped to the correct project directory.
+---
+
+# Workspace Scope
+
+Agent Space is workspace-first. Every chat should run against a known directory before the first message is sent.
+
+## Default Behavior
+
+- Opening a folder in Explorer sets workspace scope.
+- New chat sessions inherit that selected workspace.
+- Scope is resolved before mount so the first prompt starts with correct context.
+
+## Custom Directory Mode
+
+Use custom directory mode when you need one workspace open but want a chat scoped to another folder.
+
+Recommended pattern:
+
+1. Select the primary workspace in Explorer.
+2. In chat, switch directory scope for the active tab.
+3. Confirm scope indicator before starting long tasks.
+
+## Good Habits
+
+- One project per chat tab when possible.
+- Use explicit scope switches for multi-repo tasks.
+- Avoid cross-project prompts without verifying scope.
+

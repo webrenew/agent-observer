@@ -1,0 +1,34 @@
+---
+title: Scheduled Actions
+description: Configure CRON actions so agents can run work on a schedule.
+---
+
+# Scheduled Actions
+
+Agent Space supports scheduled actions for repeated tasks.
+
+## What CRON Means in Agent Space
+
+- `CRON` indicates a scheduled repeated task.
+- `CRON` is not a file glob and should not label non-scheduled actions.
+
+## Typical Use Cases
+
+- Daily repo health checks
+- Repeated summary generation
+- Scheduled maintenance prompts
+- Routine reporting workflows
+
+## Setup Guidance
+
+1. Define the task prompt clearly.
+2. Pick a schedule and expected runtime window.
+3. Set workspace directory scope for the task.
+4. Validate results in activity timeline and output panels.
+
+## Validation
+
+- Timeline entries should show `CRON` only for scheduled runs.
+- Task output should include timestamps and workspace context.
+- Failures should be visible in activity and logs.
+
