@@ -170,6 +170,7 @@ function fuzzyScore(nameLower: string, relPathLower: string, queryLower: string)
 
 let handlersRegistered = false
 let dialogParentWindow: BrowserWindow | null = null
+let pendingOpenFolderDialog: Promise<string | null> | null = null
 
 function getDialogParentWindow(): BrowserWindow | undefined {
   const focused = BrowserWindow.getFocusedWindow()
@@ -188,21 +189,31 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
 
   // Native "Open Folder" dialog — returns selected path or null
   ipcMain.handle('fs:openFolderDialog', async () => {
-    const win = getDialogParentWindow()
-    try {
-      const dialogOpts = {
-        properties: ['openDirectory' as const],
-        title: 'Open Folder',
-      }
-      const result = win
-        ? await dialog.showOpenDialog(win, dialogOpts)
-        : await dialog.showOpenDialog(dialogOpts)
-      if (result.canceled || result.filePaths.length === 0) return null
-      return result.filePaths[0]
-    } catch (err) {
-      console.error('[filesystem] openFolderDialog error:', err)
-      throw err
+    if (pendingOpenFolderDialog) {
+      return pendingOpenFolderDialog
     }
+
+    pendingOpenFolderDialog = (async () => {
+      const win = getDialogParentWindow()
+      try {
+        const dialogOpts = {
+          properties: ['openDirectory' as const],
+          title: 'Open Folder',
+        }
+        const result = win
+          ? await dialog.showOpenDialog(win, dialogOpts)
+          : await dialog.showOpenDialog(dialogOpts)
+        if (result.canceled || result.filePaths.length === 0) return null
+        return result.filePaths[0]
+      } catch (err) {
+        console.error('[filesystem] openFolderDialog error:', err)
+        throw err
+      } finally {
+        pendingOpenFolderDialog = null
+      }
+    })()
+
+    return pendingOpenFolderDialog
   })
 
   ipcMain.handle('fs:readDir', async (_event, dirPath: string, showHidden?: boolean) => {
