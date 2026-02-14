@@ -1,34 +1,83 @@
 ---
 title: Quickstart
-description: Install Agent Space and launch your first workspace-scoped session.
+description: Install Agent Space, open your first workspace, and run your first production-safe agent workflow.
 ---
 
 # Quickstart
 
+This quickstart gets a new install from zero to a validated workflow in about 10 minutes.
+
 ## Prerequisites
 
 - macOS on Apple Silicon
-- Access to your local development folders
-- Claude Code or other local agent tooling (optional)
+- Local access to at least one development directory
+- One agent runtime available (Claude Code CLI, Anthropic Agent SDK worker, or both)
 
-## Install
+## Install Agent Space
 
-```bash
-open https://github.com/webrenew/agent-space/releases/latest
-```
+1. Download the latest release from [GitHub Releases](https://github.com/webrenew/agent-space/releases/latest).
+2. Open the `.dmg`.
+3. Drag **Agent Space** into `Applications`.
+4. Launch from `Applications`.
 
-Download the latest `.dmg`, drag **Agent Space** into `Applications`, and open the app.
+## First-Run Setup
 
-## First Run
+1. Set your default working directory in the onboarding flow.
+2. Grant file permissions for your project folder when prompted.
+3. Open the target repository from Explorer.
+4. Confirm the selected workspace path before starting chat.
 
-1. Pick your default workspace directory.
-2. Open a project from Explorer.
-3. Start a chat scoped to that directory.
-4. Confirm activity and token telemetry in the sidebar panels.
+## Run Your First Workspace-Scoped Session
 
-## Verify
+1. Open chat.
+2. Send a narrow prompt tied to one file or one goal.
+3. Use `@` mentions to reference exact files.
+4. Watch status and token updates in the side panels while the run executes.
 
-- Search tab can find files in your project root.
-- Office panel shows one active agent for one active chat.
-- Token tracker increments for chat/tool actions.
+Expected result:
 
+- Chat responses stream normally.
+- Agent status transitions from active states to `done` (or `error` with diagnostics).
+- Token counters increase when model/tool work happens.
+
+## Validate Search and File Context
+
+1. Open the Search panel.
+2. Search for a known file name from your repository.
+3. Open the result in the editor panel.
+4. Reference the same file in chat via `@` mention.
+
+Expected result:
+
+- Search returns files inside your selected workspace.
+- Referenced files are attached to chat context exactly as selected.
+
+## Validate Background Automation Paths
+
+Use the two automation features for different workloads:
+
+- **Schedules** (`Settings -> Schedules`): recurring cron-based prompts.
+- **Todo Runner** (`Settings -> Todo Runner`): sequential execution of a large checklist until completed.
+
+Quick sanity checks:
+
+1. Create one disabled schedule and save.
+2. Create one Todo Runner job with 2 short todo items and save.
+3. Confirm both entries appear with status metadata in Settings.
+
+## First Production Checklist
+
+Before using Agent Space for long unattended runs:
+
+1. Confirm workspace path is correct.
+2. Confirm required filesystem permissions are granted.
+3. Keep prompts specific and bounded.
+4. Use small dry runs before large todo lists.
+5. Verify your fallback path for failures (logs + retry strategy).
+
+## If Something Fails
+
+- Workspace path looks wrong: see [Workspace Scope](/docs/guides/workspace-scope)
+- Scheduler not firing: see [Scheduled Actions](/docs/guides/scheduled-actions)
+- Todo list not progressing: see [Todo Runner](/docs/guides/todo-runner)
+- General runtime issues: see [Troubleshooting](/docs/reference/troubleshooting)

@@ -1,22 +1,107 @@
 ---
 title: Architecture
-description: High-level architecture for the desktop app and mirrored web interface.
+description: Technical architecture of Agent Space across desktop runtime, renderer, automation engines, and docs web surface.
 ---
 
 # Architecture
 
-Agent Space combines an Electron desktop runtime with a Next.js web surface.
+Agent Space is primarily an Electron desktop application with a separate Next.js documentation/product web surface.
 
-## High Level
+## System Layers
 
-- **Desktop**: Electron + renderer panels for chat, explorer, terminal, and office scene.
-- **Web**: Next.js site mirroring visual language and product capabilities.
-- **State**: workspace-first context and agent telemetry stores.
+### Desktop Runtime (Electron Main)
 
-## Design Principles
+Responsibilities:
 
-- Keep project scope explicit and visible.
-- Preserve local-first behavior.
-- Make operational state legible at a glance.
-- Keep desktop and web mental models aligned.
+- lifecycle and window management
+- IPC handler registration
+- integration with local process/runtime boundaries
+- persistent local state for scheduler and todo runner
 
+Key modules:
+
+- `src/main/index.ts`
+- `src/main/scheduler.ts`
+- `src/main/todo-runner.ts`
+- `src/main/claude-session.ts`
+
+### Preload Bridge
+
+Provides typed, constrained renderer access to main-process functionality.
+
+Key module:
+
+- `src/preload/index.ts`
+
+### Renderer (React)
+
+Responsibilities:
+
+- panel layout and interaction state
+- settings UI for schedules and todo runner
+- status presentation and operator controls
+
+Key modules:
+
+- `src/renderer/components/SettingsPanel.tsx`
+- `src/renderer/types.ts`
+
+### Shared Contracts
+
+Shared typing for renderer/preload interfaces:
+
+- `src/shared/electron-api.ts`
+
+### Web Docs Surface (Next.js)
+
+Separate web app for docs/content:
+
+- `web/src/app/*`
+- `web/content/docs/*`
+
+## Automation Engines
+
+### Scheduler
+
+- Time-based recurring task execution.
+- Cron parsing and next-run calculation in main process.
+- Runtime status persisted to local JSON.
+
+State file:
+
+- `~/.agent-space/schedules.json`
+
+### Todo Runner
+
+- Sequential checklist execution until completion or blocked state.
+- One todo item per runner invocation.
+- Retry and pause semantics built into orchestration loop.
+
+State file:
+
+- `~/.agent-space/todo-runner.json`
+
+## Data/Control Flow
+
+1. User configures automation in Settings.
+2. Renderer calls preload APIs.
+3. Preload forwards to main IPC handlers.
+4. Main engine mutates state and executes work.
+5. Main broadcasts update events.
+6. Renderer reloads lists and updates status UI.
+
+## Design Constraints
+
+- Local filesystem and command execution boundaries must remain explicit.
+- Long-running work must be resumable.
+- UI status should be derived from persisted runtime state where possible.
+- Docs and implementation contracts must stay aligned.
+
+## Extension Direction
+
+High-value extension points:
+
+- richer run history and artifact storage
+- policy controls for runner commands
+- stronger contract validation for runner outputs
+- richer event stream for observability dashboards

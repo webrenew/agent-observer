@@ -1,0 +1,168 @@
+---
+title: Agent SDK Runner Recipes
+description: Practical runner patterns for wiring Todo Runner to Anthropic Agent SDK workers.
+---
+
+# Agent SDK Runner Recipes
+
+This page shows practical runner patterns for **Todo Runner** jobs.
+
+Goal:
+
+- Agent Space manages queue/progress/retries.
+- Your runner executes exactly one todo item per process.
+
+See [Todo Runner](/docs/guides/todo-runner) for the full runtime contract.
+
+## Contract Recap
+
+Each runner invocation receives:
+
+- todo payload in `AGENT_SPACE_TODO_PAYLOAD`
+- convenience fields like `AGENT_SPACE_TODO_TEXT`
+- the same payload on stdin JSON
+
+Your runner must:
+
+1. parse payload
+2. execute only current todo item
+3. exit `0` on success
+4. exit non-zero on failure
+
+## Python Skeleton
+
+```python
+#!/usr/bin/env python3
+import json
+import os
+import sys
+
+
+def read_payload() -> dict:
+    raw = os.getenv("AGENT_SPACE_TODO_PAYLOAD", "").strip()
+    if raw:
+      return json.loads(raw)
+
+    stdin = sys.stdin.read().strip()
+    if stdin:
+      return json.loads(stdin)
+
+    raise RuntimeError("Missing todo payload")
+
+
+def run_one_todo(payload: dict) -> None:
+    todo = payload["todo"]["text"]
+    workdir = payload["job"]["workingDirectory"]
+    prompt = payload["job"].get("prompt", "")
+
+    # Replace this block with your Anthropic Agent SDK call.
+    # Must execute exactly this todo item.
+    print(f"Running todo: {todo} in {workdir}")
+    print(f"Global prompt: {prompt}")
+
+
+def main() -> int:
+    try:
+        payload = read_payload()
+        run_one_todo(payload)
+        return 0
+    except Exception as exc:
+        print(f"Runner error: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+Recommended command in Todo Runner:
+
+```bash
+python3 /absolute/path/to/runner.py
+```
+
+## Node.js Skeleton
+
+```js
+#!/usr/bin/env node
+import process from "node:process";
+
+async function readStdin() {
+  return await new Promise((resolve) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.on("data", (chunk) => (data += chunk));
+    process.stdin.on("end", () => resolve(data.trim()));
+    process.stdin.resume();
+  });
+}
+
+async function readPayload() {
+  const envPayload = (process.env.AGENT_SPACE_TODO_PAYLOAD || "").trim();
+  if (envPayload) return JSON.parse(envPayload);
+
+  const stdin = await readStdin();
+  if (stdin) return JSON.parse(stdin);
+
+  throw new Error("Missing todo payload");
+}
+
+async function runOneTodo(payload) {
+  const todoText = payload.todo.text;
+  const workdir = payload.job.workingDirectory;
+  const prompt = payload.job.prompt || "";
+
+  // Replace with your Agent SDK call.
+  console.log(`Running todo: ${todoText} in ${workdir}`);
+  console.log(`Global prompt: ${prompt}`);
+}
+
+async function main() {
+  try {
+    const payload = await readPayload();
+    await runOneTodo(payload);
+    process.exit(0);
+  } catch (error) {
+    console.error(`Runner error: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}
+
+main();
+```
+
+Recommended command in Todo Runner:
+
+```bash
+node /absolute/path/to/runner.mjs
+```
+
+## Robustness Checklist
+
+Before running large lists:
+
+1. Validate payload parsing from env and stdin.
+2. Confirm one-item execution (no internal loops over all items).
+3. Make failures return non-zero.
+4. Emit actionable stderr.
+5. Keep writes scoped to `job.workingDirectory`.
+
+## Prompt Pattern For High Reliability
+
+Use global prompts with strict shape:
+
+- objective
+- allowed scope
+- expected output format
+- completion criteria
+
+Example:
+
+"Complete only this todo item in the specified directory. Return a concise summary and list modified files. If blocked, return explicit reason and no speculative fixes."
+
+## Common Mistakes
+
+- Consuming multiple todo items in one run.
+- Swallowing errors and exiting `0`.
+- Ignoring working directory and editing global paths.
+- Omitting prompt structure, causing inconsistent output.

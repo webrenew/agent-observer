@@ -1,27 +1,50 @@
 ---
 title: Permissions
-description: macOS permissions and privacy prompts used by Agent Space.
+description: macOS privacy and filesystem permissions required for reliable Agent Space operation.
 ---
 
 # Permissions
 
-Agent Space requests local filesystem and app-access permissions for project-aware workflows.
+Agent Space depends on local filesystem access to provide workspace-scoped workflows.
 
-## Common macOS Prompts
+## Required Permission Categories
 
-- File and folder access for workspace search and indexing
-- App data access for broader local context (if enabled)
-- Notification permissions for completion dings/alerts
+- file/folder access for workspace browsing and search
+- optional notification permission for completion alerts
 
-## Recommended Settings
+## Minimum Recommended Access
 
-- Grant project folder access at minimum.
-- Avoid broad system directories unless needed.
-- Review access in `System Settings > Privacy & Security`.
+Grant access to:
 
-## If Prompt Repeats
+- your active repository root(s)
+- any directories used by schedules or todo-runner jobs
 
-1. Open privacy settings and confirm Agent Space has the required category enabled.
+Avoid broad system-level access unless needed for your workflow.
+
+## Verify Permission Health
+
+1. Open workspace in Explorer.
+2. Search for a known file.
+3. Open file in editor panel.
+4. Run one small chat action referencing that file.
+
+If any step fails, check macOS privacy settings.
+
+## macOS Settings Path
+
+`System Settings -> Privacy & Security`
+
+Check relevant categories and ensure Agent Space is allowed for the intended directories.
+
+## Repeated Prompt Or Access Errors
+
+1. Reconfirm permissions in macOS settings.
 2. Restart Agent Space.
-3. Reopen target workspace and re-run search/action.
+3. Reopen workspace and retry.
+4. If still failing, reduce to one test directory and validate from there.
 
+## Automation-Specific Reminder
+
+Schedules and Todo Runner both rely on valid directory access for each configured job/task.
+
+A missing permission can look like a runtime failure even when prompt/runner logic is correct.

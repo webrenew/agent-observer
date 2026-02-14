@@ -1,37 +1,48 @@
 ---
 title: Documentation
-description: Mission-control docs for installing, operating, and extending Agent Space.
+description: Operator-grade docs for installing, running, and scaling Agent Space workflows.
 ---
 
 # Agent Space Documentation
 
-Agent Space is a desktop mission-control environment for AI coding agents with a live office scene, workspace-aware chat, and local tool orchestration.
+Agent Space documentation is organized around real operator workflows:
+
+- getting started safely
+- automating recurring and long-running work
+- diagnosing and recovering from failures
 
 ## Start Here
 
-- [Quickstart](/docs/quickstart): install and run in under a minute
-- [Overview](/docs/overview): product and capability map
-- [Monitoring](/docs/monitoring): token and activity observability
-- [Memory](/docs/memory): context continuity and workspace signals
-- [Integrations](/docs/integrations): Claude Code, Cursor, and local tools
-- [Architecture](/docs/architecture): high-level technical layout
+- [Quickstart](/docs/quickstart): install, configure scope, and validate your first run
+- [Overview](/docs/overview): product model and core use cases
+- [Architecture](/docs/architecture): runtime and automation architecture
+
+## Operations
+
+- [Monitoring](/docs/monitoring): what to watch day-to-day
+- [Memory](/docs/memory): scope and persistence boundaries
+- [Integrations](/docs/integrations): local tools and runner integration patterns
 
 ## Guides
 
-- [Workspace Scope](/docs/guides/workspace-scope): keep chat tied to the correct project
-- [Chat and Files](/docs/guides/chat-and-files): image paste, file references, and explorer usage
-- [Scheduled Actions](/docs/guides/scheduled-actions): set up and run CRON tasks in app
-- [Todo Runner](/docs/guides/todo-runner): execute large todo lists sequentially with an external runner
+- [Workspace Scope](/docs/guides/workspace-scope): avoid cross-repo mistakes
+- [Chat and Files](/docs/guides/chat-and-files): high-signal file-aware prompting
+- [Scheduled Actions](/docs/guides/scheduled-actions): cron-based recurring automation
+- [Todo Runner](/docs/guides/todo-runner): run large finite checklists to completion
+- [Agent SDK Runner Recipes](/docs/guides/agent-sdk-runner-recipes): practical worker skeletons
+- [Production Playbook](/docs/guides/production-playbook): rollout and incident runbooks
 
 ## Reference
 
-- [Keyboard Shortcuts](/docs/reference/keyboard-shortcuts): keybindings and interaction cheatsheet
-- [Permissions](/docs/reference/permissions): OS access prompts and recommended settings
-- [Troubleshooting](/docs/reference/troubleshooting): common issues and fast fixes
-- [Status Model](/docs/reference/status-model): activity labels and state semantics
+- [Keyboard Shortcuts](/docs/reference/keyboard-shortcuts)
+- [Permissions](/docs/reference/permissions)
+- [Status Model](/docs/reference/status-model)
+- [IPC API](/docs/reference/ipc-api)
+- [Troubleshooting](/docs/reference/troubleshooting)
+- [Docs Style Guide](/docs/reference/docs-style-guide)
 
 ## Install
 
 1. Download the latest macOS build from [GitHub Releases](https://github.com/webrenew/agent-space/releases/latest).
-2. Open the `.dmg` file and drag **Agent Space** to `Applications`.
-3. Launch from `Applications` and approve requested permissions.
+2. Open the `.dmg` and drag **Agent Space** to `Applications`.
+3. Launch and complete first-run workspace setup.

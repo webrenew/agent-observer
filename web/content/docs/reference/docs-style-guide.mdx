@@ -1,0 +1,77 @@
+---
+title: Docs Style Guide
+description: Quality standards and template for writing and maintaining high-signal Agent Space docs.
+---
+
+# Docs Style Guide
+
+Use this guide to keep docs consistent, actionable, and production-ready.
+
+## Audience
+
+Primary audience:
+
+- developers operating Agent Space in real projects
+- technical users wiring external runners and automations
+
+Write for execution, not marketing.
+
+## Required Page Structure
+
+Every guide page should include:
+
+1. **When to use**
+2. **Prerequisites**
+3. **Step-by-step setup**
+4. **Expected results**
+5. **Failure modes and fixes**
+6. **Related links**
+
+If a page cannot satisfy these sections, it is likely too shallow.
+
+## Writing Rules
+
+- Prefer concrete steps over abstract statements.
+- Include copy-paste commands where relevant.
+- Name exact UI paths (example: `Settings -> Todo Runner`).
+- Use explicit field names and contracts.
+- Keep examples realistic and bounded.
+
+Avoid:
+
+- vague promises
+- untestable claims
+- feature lists with no operator guidance
+
+## Example Quality Bar
+
+Good:
+
+- "Click **Run now** and verify `lastRunAt` updates."
+
+Weak:
+
+- "Make sure the task works."
+
+## Maintenance Rules
+
+Update docs in the same PR when you change:
+
+- IPC contracts
+- persisted file formats
+- user-facing labels/paths
+- runtime behavior or retry semantics
+
+## QA Checklist Before Merge
+
+1. New/changed pages linked from nav.
+2. No dead internal links.
+3. Steps are executable from a clean install.
+4. Runtime contracts match source code.
+5. Troubleshooting paths cover likely operator failures.
+
+## Suggested Ownership
+
+- Each feature area has a named docs owner.
+- Release checklist includes docs verification.
+- Stale pages are reviewed on a regular cadence.

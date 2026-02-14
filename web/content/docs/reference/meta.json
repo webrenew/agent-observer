@@ -3,8 +3,9 @@
   "pages": [
     "keyboard-shortcuts",
     "permissions",
+    "status-model",
+    "ipc-api",
     "troubleshooting",
-    "status-model"
+    "docs-style-guide"
   ]
 }
-

@@ -1,0 +1,122 @@
+---
+title: Production Playbook
+description: Operational playbook for running Agent Space safely with long-running workloads.
+---
+
+# Production Playbook
+
+This playbook is for teams running Agent Space as a daily operational tool.
+
+## Operational Goals
+
+- keep workspace scope correct
+- reduce unattended failure rates
+- keep long-running tasks recoverable
+- make incidents diagnosable quickly
+
+## Preflight Checklist
+
+Run before enabling recurring jobs or large todo batches:
+
+1. Verify default workspace path.
+2. Verify required folder permissions in macOS.
+3. Verify runner commands execute manually.
+4. Verify prompts are bounded and deterministic.
+5. Run one dry-run for every new automation pattern.
+
+## Safe Rollout Pattern
+
+### Phase 1: Smoke
+
+- Use small prompts and tiny todo lists (2-3 items).
+- Run manually.
+- Confirm status transitions and output quality.
+
+### Phase 2: Limited
+
+- Increase to one real workflow.
+- For schedules: start with low frequency.
+- For todo runner: use medium list (~10 items).
+
+### Phase 3: Full
+
+- Enable production cadence.
+- Keep explicit rollback procedures.
+- Monitor daily until stable.
+
+## Schedules Runbook
+
+Use for recurring checks and summaries.
+
+Daily checks:
+
+1. Review schedules with `error` status.
+2. Confirm next-run timestamps are reasonable.
+3. Disable tasks with repeated noisy failures.
+4. Update prompts to reduce ambiguity.
+
+## Todo Runner Runbook
+
+Use for large finite backlog execution.
+
+Per job checks:
+
+1. Review progress (`completed / total`).
+2. Review failed/blocked counts.
+3. Resolve root cause before reset/replay.
+4. Resume from current item whenever possible.
+
+## Incident Response
+
+### Severity 1: Wrong workspace modifications
+
+1. Pause active runner/schedule.
+2. Snapshot current git state.
+3. Re-scope workspace paths.
+4. Re-run with strict path constraints.
+
+### Severity 2: Persistent runner failures
+
+1. Reproduce one failing item manually.
+2. Capture stderr and dependency errors.
+3. Patch runner or prompt contract.
+4. Resume from remaining items.
+
+### Severity 3: UI/state inconsistency
+
+1. Restart app.
+2. Reload one workspace only.
+3. Confirm persisted job/schedule state.
+4. Re-enable automations gradually.
+
+## Prompt Engineering Rules For Ops
+
+Use prompts that include:
+
+- scope boundary
+- expected deliverable format
+- explicit stop conditions
+- explicit failure output
+
+Avoid prompts that:
+
+- request broad speculative changes
+- span multiple repositories without explicit boundaries
+- omit success criteria
+
+## Weekly Reliability Review
+
+Track:
+
+- schedule success/error ratio
+- todo runner completion time by batch size
+- top recurring failure causes
+- mean time to recovery
+
+Use this review to tighten prompts, runner contracts, and scope defaults.
+
+## Suggested Team Ownership
+
+- **Doc owner**: updates runbooks after feature changes
+- **Ops owner**: reviews recurring failures and remediation
+- **Release owner**: validates automation behavior before releases

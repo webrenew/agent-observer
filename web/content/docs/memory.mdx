@@ -1,21 +1,61 @@
 ---
 title: Memory
-description: How workspace scope and context persistence are handled in Agent Space.
+description: Scope and context persistence model for chat, schedules, and todo-runner execution.
 ---
 
 # Memory and Scope
 
-Agent Space keeps chat context grounded to the selected workspace.
+In Agent Space, "memory" is operationally tied to workspace scope and persisted automation state.
 
-## Scope Model
+## Scope Is The First Memory Boundary
 
-- **Workspace mode**: default scope follows opened project directory.
-- **Custom directory mode**: user can explicitly set chat scope for multi-project usage.
-- **Pre-message scoping**: scope is resolved before first user message when opening folders.
+Before prompts run, scope determines what context is relevant.
 
-## Best Practices
+Scope modes:
 
-- Keep one chat per project scope when possible.
-- Use explicit scope switching for cross-repo work.
-- Validate scope indicator before prompting long-running tasks.
+- **Workspace mode**: chat follows selected project directory.
+- **Custom directory mode**: explicit override for multi-project workflows.
 
+If scope is wrong, downstream memory/context quality is wrong.
+
+## Context Persistence Areas
+
+### Chat Context
+
+- conversation flow and file references in current session
+- runtime status visible through UI panels
+
+### Scheduler State
+
+- recurring task definitions and runtime metadata
+- persisted locally in `~/.agent-space/schedules.json`
+
+### Todo Runner State
+
+- checklist items, progress, retry state, blocked items
+- persisted locally in `~/.agent-space/todo-runner.json`
+
+## Practical Memory Hygiene
+
+1. Keep one project per chat tab when possible.
+2. Use explicit file references for critical prompts.
+3. Separate recurring checks from backlog execution (Schedules vs Todo Runner).
+4. Reset only when replay is intentional; otherwise resume from current state.
+
+## Common Failure Pattern
+
+Symptom:
+
+- Agent behavior looks inconsistent across runs.
+
+Root cause candidates:
+
+- workspace scope drift
+- prompt scope ambiguity
+- stale assumptions after path changes
+
+Recovery:
+
+1. Reconfirm workspace path.
+2. Re-run a minimal controlled task.
+3. Reintroduce complexity incrementally.
