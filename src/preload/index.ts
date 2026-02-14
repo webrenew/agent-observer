@@ -239,6 +239,10 @@ const electronAPI: ElectronAPI = {
     getLogPath: () =>
       ipcRenderer.invoke('diagnostics:getLogPath') as Promise<string>,
   },
+  context: {
+    getWorkspaceSnapshot: (directory: string) =>
+      ipcRenderer.invoke('context:getWorkspaceSnapshot', directory),
+  },
   scheduler: {
     list: () =>
       ipcRenderer.invoke('scheduler:list'),

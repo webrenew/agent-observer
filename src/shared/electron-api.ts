@@ -2,6 +2,7 @@ import type {
   AppSettings,
   ClaudeEvent,
   ClaudeSessionOptions,
+  WorkspaceContextSnapshot,
   SchedulerTask,
   SchedulerTaskInput,
 } from '../renderer/types'
@@ -140,6 +141,9 @@ export interface ElectronAPI {
       payload?: Record<string, unknown>
     ) => Promise<void>
     getLogPath: () => Promise<string>
+  }
+  context: {
+    getWorkspaceSnapshot: (directory: string) => Promise<WorkspaceContextSnapshot>
   }
   scheduler: {
     list: () => Promise<SchedulerTask[]>

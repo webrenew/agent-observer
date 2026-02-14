@@ -6,6 +6,9 @@ import { Desk } from './Desk'
 import { AgentCharacter } from './AgentCharacter'
 import { OfficeCat } from './OfficeCat'
 import { useAgentStore } from '../store/agents'
+import { useWorkspaceStore } from '../store/workspace'
+import { useWorkspaceIntelligenceStore } from '../store/workspaceIntelligence'
+import { OfficeSignals } from './OfficeSignals'
 
 const COLS = 2
 const X_SPACING = 3.0
@@ -21,9 +24,35 @@ function computeDeskPosition(index: number): [number, number, number] {
 
 export function Office() {
   const agents = useAgentStore((s) => s.agents)
+  const chatSessions = useAgentStore((s) => s.chatSessions)
+  const activeChatSessionId = useAgentStore((s) => s.activeChatSessionId)
+  const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
+  const snapshots = useWorkspaceIntelligenceStore((s) => s.snapshots)
+  const rewards = useWorkspaceIntelligenceStore((s) => s.rewards)
 
   // Show only primary chat/terminal agents in Office.
   const deskAgents = useMemo(() => agents.filter((a) => !a.isSubagent), [agents])
+
+  const activeWorkspaceDirectory = useMemo(() => {
+    const activeChat = chatSessions.find((session) => session.id === activeChatSessionId) ?? null
+    return activeChat?.workingDirectory ?? workspaceRoot ?? null
+  }, [activeChatSessionId, chatSessions, workspaceRoot])
+
+  const scopedRewards = useMemo(() => {
+    if (!activeWorkspaceDirectory) return rewards
+    return rewards.filter((reward) => reward.workspaceDirectory === activeWorkspaceDirectory)
+  }, [activeWorkspaceDirectory, rewards])
+
+  const latestReward = scopedRewards[scopedRewards.length - 1] ?? null
+  const recentRewards = scopedRewards.slice(-10)
+  const successCount = recentRewards.filter((reward) => reward.status === 'success').length
+  const successRate = recentRewards.length > 0 ? successCount / recentRewards.length : 0
+  const activeSnapshot = activeWorkspaceDirectory ? snapshots[activeWorkspaceDirectory] : undefined
+  const contextCoverage = latestReward
+    ? latestReward.contextScore
+    : Math.min(1, (activeSnapshot?.keyFiles.length ?? 0) / 8)
+  const contextFiles = latestReward?.contextFiles ?? activeSnapshot?.keyFiles.length ?? 0
+  const dirtyFiles = activeSnapshot?.gitDirtyFiles ?? 0
 
   // Only show desks for active desk agents — no empty desks
   const maxIndex = deskAgents.length > 0 ? Math.max(...deskAgents.map((a) => a.deskIndex)) : -1
@@ -92,6 +121,14 @@ export function Office() {
         <boxGeometry args={[2.3, 1.3, 0.02]} />
         <meshStandardMaterial color="#fff" />
       </mesh>
+
+      <OfficeSignals
+        contextCoverage={contextCoverage}
+        rewardScore={latestReward?.rewardScore ?? null}
+        successRate={successRate}
+        contextFiles={contextFiles}
+        dirtyFiles={dirtyFiles}
+      />
 
       <OrbitControls
         makeDefault

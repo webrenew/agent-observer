@@ -8,12 +8,14 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "lint": "pnpm run lint:desktop",
-    "lint:desktop": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:desktop": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0",
     "lint:web": "pnpm -C web run lint",
+    "typecheck": "tsc -b",
     "package": "electron-vite build && electron-builder --mac --dir",
     "package:dmg": "electron-vite build && electron-builder --mac dmg",
     "test:smoke": "pnpm build && playwright test -c playwright.smoke.config.ts",
-    "postinstall": "electron-rebuild -f -w node-pty"
+    "postinstall": "electron-rebuild -f -w node-pty",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -60,6 +62,7 @@
     "eslint": "^8.57.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "husky": "^9.1.7",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.9.3"

@@ -1,12 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import type { ChatMessage, ClaudeEvent } from '../../types'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import type { ChatMessage, ClaudeEvent, WorkspaceContextSnapshot } from '../../types'
 import { randomAppearance } from '../../types'
 import { useAgentStore } from '../../store/agents'
 import { useWorkspaceStore } from '../../store/workspace'
+import { useWorkspaceIntelligenceStore } from '../../store/workspaceIntelligence'
 import { useSettingsStore } from '../../store/settings'
 import { useChatHistoryStore } from '../../store/chatHistory'
 import { matchScope } from '../../lib/scopeMatcher'
 import { playChatCompletionDing } from '../../lib/soundPlayer'
+import { buildWorkspaceContextPrompt } from '../../lib/workspaceContext'
+import { computeRunReward } from '../../lib/rewardEngine'
+import { logRendererEvent } from '../../lib/diagnostics'
 import { ChatMessageBubble } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 
@@ -180,6 +184,13 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const activeRunDirectoryRef = useRef<string | null>(null)
   const runTokenBaselineRef = useRef<{ input: number; output: number } | null>(null)
   const runModelBaselineRef = useRef<Record<string, { input: number; output: number }> | null>(null)
+  const runStartedAtRef = useRef<number | null>(null)
+  const runContextFilesRef = useRef(0)
+  const runUnresolvedMentionsRef = useRef(0)
+  const runToolCallCountRef = useRef(0)
+  const runFileWriteCountRef = useRef(0)
+  const runYoloModeRef = useRef(false)
+  const runRewardRecordedRef = useRef(false)
   const subagentSeatCounter = useRef(0)
   const activeSubagents = useRef<Map<string, string>>(new Map()) // toolUseId → subagentId
 
@@ -202,8 +213,23 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const loadHistory = useChatHistoryStore((s) => s.loadHistory)
   const getHistory = useChatHistoryStore((s) => s.getHistory)
   const isHistoryLoaded = useChatHistoryStore((s) => s.isLoaded)
+  const upsertWorkspaceSnapshot = useWorkspaceIntelligenceStore((s) => s.upsertSnapshot)
+  const setChatContextSnapshot = useWorkspaceIntelligenceStore((s) => s.setChatContextSnapshot)
+  const addReward = useWorkspaceIntelligenceStore((s) => s.addReward)
+  const rewards = useWorkspaceIntelligenceStore((s) => s.rewards)
+  const latestContextForChat = useWorkspaceIntelligenceStore((s) => s.latestContextByChat[chatSessionId] ?? null)
   const [showRecentMenu, setShowRecentMenu] = useState(false)
   const recentMenuRef = useRef<HTMLDivElement>(null)
+
+  const latestRewardForChat = useMemo(() => {
+    for (let index = rewards.length - 1; index >= 0; index -= 1) {
+      const candidate = rewards[index]
+      if (candidate.chatSessionId === chatSessionId) {
+        return candidate
+      }
+    }
+    return null
+  }, [chatSessionId, rewards])
 
   const setActiveClaudeSession = useCallback((sessionId: string | null) => {
     activeClaudeSessionIdRef.current = sessionId
@@ -353,6 +379,61 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     },
     [updateAgent]
   )
+
+  const finalizeRunReward = useCallback((status: 'success' | 'error' | 'stopped') => {
+    if (runRewardRecordedRef.current) return
+    runRewardRecordedRef.current = true
+
+    const workspaceDirectory = activeRunDirectoryRef.current
+    const agentId = agentIdRef.current
+    if (!workspaceDirectory || !agentId) return
+
+    const baseline = runTokenBaselineRef.current
+    const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId)
+    const tokenDeltaInput = Math.max(
+      0,
+      (agent?.tokens_input ?? baseline?.input ?? 0) - (baseline?.input ?? 0)
+    )
+    const tokenDeltaOutput = Math.max(
+      0,
+      (agent?.tokens_output ?? baseline?.output ?? 0) - (baseline?.output ?? 0)
+    )
+    const durationMs = runStartedAtRef.current ? Date.now() - runStartedAtRef.current : 0
+
+    const reward = addReward(computeRunReward({
+      chatSessionId,
+      workspaceDirectory,
+      status,
+      durationMs,
+      tokenDeltaInput,
+      tokenDeltaOutput,
+      contextFiles: runContextFilesRef.current,
+      toolCalls: runToolCallCountRef.current,
+      fileWrites: runFileWriteCountRef.current,
+      unresolvedMentions: runUnresolvedMentionsRef.current,
+      yoloMode: runYoloModeRef.current,
+    }))
+
+    addEvent({
+      agentId,
+      agentName: chatSession?.label ?? 'Chat',
+      type: 'status_change',
+      description: `Reward ${reward.rewardScore} (${status})`,
+    })
+    logRendererEvent('info', 'chat.reward.recorded', {
+      chatSessionId,
+      workspaceDirectory,
+      status,
+      rewardScore: reward.rewardScore,
+      tokenDeltaInput,
+      tokenDeltaOutput,
+      contextFiles: runContextFilesRef.current,
+      toolCalls: runToolCallCountRef.current,
+      fileWrites: runFileWriteCountRef.current,
+      unresolvedMentions: runUnresolvedMentionsRef.current,
+      yoloMode: runYoloModeRef.current,
+    })
+  }, [addEvent, addReward, chatSession?.label, chatSessionId])
 
   // Keep chat session directory synced to workspace until the first message.
   // User-picked custom dirs are never overwritten by sidebar folder changes.
@@ -531,6 +612,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
         case 'tool_use': {
           const data = event.data as { id: string; name: string; input: Record<string, unknown> }
+          runToolCallCountRef.current += 1
           setMessages((prev) => [
             ...prev.filter((m) => m.role !== 'thinking'),
             {
@@ -556,6 +638,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             // Track file modifications
             const fileTools = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit']
             if (fileTools.includes(data.name)) {
+              runFileWriteCountRef.current += 1
               const current = useAgentStore.getState().agents.find((a) => a.id === agentId)
               if (current) {
                 updateAgent(agentId, { files_modified: current.files_modified + 1 })
@@ -681,11 +764,13 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             })
             clearSubagentsForParent(agentId)
           }
+          finalizeRunReward(data.is_error ? 'error' : 'success')
 
           setActiveClaudeSession(null)
           activeRunDirectoryRef.current = null
           runTokenBaselineRef.current = null
           runModelBaselineRef.current = null
+          runStartedAtRef.current = null
           break
         }
 
@@ -706,17 +791,19 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
             updateAgent(agentId, { status: 'error', isClaudeRunning: false })
             clearSubagentsForParent(agentId)
           }
+          finalizeRunReward('error')
           setActiveClaudeSession(null)
           activeRunDirectoryRef.current = null
           runTokenBaselineRef.current = null
           runModelBaselineRef.current = null
+          runStartedAtRef.current = null
           break
         }
       }
     })
 
     return unsub
-  }, [addEvent, applyUsageSnapshot, clearSubagentsForParent, persistMessage, setActiveClaudeSession, soundsEnabled, updateAgent])
+  }, [addEvent, applyUsageSnapshot, clearSubagentsForParent, finalizeRunReward, persistMessage, setActiveClaudeSession, soundsEnabled, updateAgent])
 
   const resolveMentionedFiles = useCallback(async (rootDir: string, mentions: string[]) => {
     const normalizedMentions = Array.from(
@@ -818,15 +905,31 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         }
       }
 
-      // Build the prompt with file context
+      // Build the prompt with file + workspace context
       let prompt = message
       const mentionTokens = mentions && mentions.length > 0
         ? mentions
         : extractMentionPaths(message)
       const referenceNotes: string[] = []
+      let resolvedMentionCount = 0
+      let unresolvedMentionCount = 0
+
+      let workspaceSnapshot: WorkspaceContextSnapshot | null = null
+      try {
+        workspaceSnapshot = await window.electronAPI.context.getWorkspaceSnapshot(effectiveWorkingDir)
+        upsertWorkspaceSnapshot(workspaceSnapshot)
+      } catch (err) {
+        logRendererEvent('warn', 'chat.workspace_snapshot_failed', {
+          chatSessionId,
+          workingDirectory: effectiveWorkingDir,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      }
 
       if (mentionTokens.length > 0 && effectiveWorkingDir) {
         const { resolved, unresolved } = await resolveMentionedFiles(effectiveWorkingDir, mentionTokens)
+        resolvedMentionCount = resolved.length
+        unresolvedMentionCount = unresolved.length
         const referencedContents: string[] = []
 
         for (const ref of resolved) {
@@ -883,6 +986,10 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         prompt = `${prompt}\n\n[Reference notes: ${referenceNotes.join(' | ')}]`
       }
 
+      if (workspaceSnapshot) {
+        prompt = `${prompt}\n\n${buildWorkspaceContextPrompt(workspaceSnapshot)}`
+      }
+
       // Add user message to chat
       setMessages((prev) => [
         ...prev,
@@ -899,6 +1006,26 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
       setStatus('running')
       activeRunDirectoryRef.current = effectiveWorkingDir
+      runStartedAtRef.current = Date.now()
+      runContextFilesRef.current =
+        resolvedMentionCount
+        + (files?.length ?? 0)
+        + Math.min(workspaceSnapshot?.keyFiles.length ?? 0, 6)
+      runUnresolvedMentionsRef.current = unresolvedMentionCount
+      runToolCallCountRef.current = 0
+      runFileWriteCountRef.current = 0
+      runYoloModeRef.current = yoloMode
+      runRewardRecordedRef.current = false
+
+      setChatContextSnapshot({
+        chatSessionId,
+        workspaceDirectory: effectiveWorkingDir,
+        contextFiles: runContextFilesRef.current,
+        unresolvedMentions: unresolvedMentionCount,
+        generatedAt: workspaceSnapshot?.generatedAt ?? Date.now(),
+        gitBranch: workspaceSnapshot?.gitBranch ?? null,
+        gitDirtyFiles: workspaceSnapshot?.gitDirtyFiles ?? 0,
+      })
 
       // Reuse existing agent for this chat, or spawn one on first message
       let agentId = agentIdRef.current
@@ -990,10 +1117,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           },
         ])
         setStatus('error')
-        activeRunDirectoryRef.current = null
         updateAgent(agentId, { status: 'error', isClaudeRunning: false })
+        finalizeRunReward('error')
+        activeRunDirectoryRef.current = null
         runTokenBaselineRef.current = null
         runModelBaselineRef.current = null
+        runStartedAtRef.current = null
       }
     },
     [
@@ -1002,9 +1131,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       addToast,
       applyDirectorySelection,
       chatSessionId,
+      finalizeRunReward,
       getNextDeskIndex,
       persistMessage,
       removeAgent,
+      setChatContextSnapshot,
+      upsertWorkspaceSnapshot,
       updateAgent,
       updateChatSession,
       resolveMentionedFiles,
@@ -1023,15 +1155,17 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     }
     setStatus('done')
     setActiveClaudeSession(null)
-    activeRunDirectoryRef.current = null
 
     if (agentIdRef.current) {
       updateAgent(agentIdRef.current, { status: 'done', isClaudeRunning: false })
       clearSubagentsForParent(agentIdRef.current)
     }
+    finalizeRunReward('stopped')
+    activeRunDirectoryRef.current = null
     runTokenBaselineRef.current = null
     runModelBaselineRef.current = null
-  }, [claudeSessionId, clearSubagentsForParent, setActiveClaudeSession, updateAgent])
+    runStartedAtRef.current = null
+  }, [claudeSessionId, clearSubagentsForParent, finalizeRunReward, setActiveClaudeSession, updateAgent])
 
   const isRunning = isRunActive
 
@@ -1124,6 +1258,45 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         >
           {scopeName}
         </span>
+        {latestContextForChat && (
+          <span
+            title={`Context files: ${latestContextForChat.contextFiles} • Dirty files: ${latestContextForChat.gitDirtyFiles} • Branch: ${latestContextForChat.gitBranch ?? 'none'}`}
+            style={{
+              padding: '1px 6px',
+              borderRadius: 999,
+              border: '1px solid rgba(76,137,217,0.45)',
+              color: '#4C89D9',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              textTransform: 'uppercase',
+            }}
+          >
+            ctx {latestContextForChat.contextFiles}
+          </span>
+        )}
+        {latestRewardForChat && (
+          <span
+            title={`Reward ${latestRewardForChat.rewardScore} • outcome ${Math.round(latestRewardForChat.outcomeScore * 100)} • efficiency ${Math.round(latestRewardForChat.efficiencyScore * 100)}`}
+            style={{
+              padding: '1px 6px',
+              borderRadius: 999,
+              border: '1px solid rgba(84,140,90,0.45)',
+              color:
+                latestRewardForChat.rewardScore >= 75
+                  ? '#548C5A'
+                  : latestRewardForChat.rewardScore >= 45
+                    ? '#d4a040'
+                    : '#c45050',
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: 0.4,
+              textTransform: 'uppercase',
+            }}
+          >
+            r {latestRewardForChat.rewardScore}
+          </span>
+        )}
         <span
           title={workingDir ?? 'No working directory selected'}
           style={{

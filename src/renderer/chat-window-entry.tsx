@@ -7,7 +7,7 @@ import { setupGlobalRendererDiagnostics } from './lib/diagnostics'
  * Lightweight entry point for popped-out chat windows.
  * Reads the sessionId from the URL search params.
  */
-function ChatWindowApp() {
+export function ChatWindowApp() {
   const params = new URLSearchParams(window.location.search)
   const sessionId = params.get('sessionId') ?? `popout-${Date.now()}`
 

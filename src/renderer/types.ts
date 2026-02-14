@@ -44,6 +44,41 @@ export type SystemSound =
 export type SchedulerRunStatus = 'idle' | 'running' | 'success' | 'error'
 export type SchedulerRunTrigger = 'cron' | 'manual'
 
+export interface WorkspaceContextSnapshot {
+  directory: string
+  generatedAt: number
+  gitBranch: string | null
+  gitDirtyFiles: number
+  topLevelDirectories: string[]
+  topLevelFiles: string[]
+  keyFiles: string[]
+  npmScripts: string[]
+  techHints: string[]
+  readmeSnippet: string | null
+}
+
+export interface ChatRunReward {
+  id: string
+  chatSessionId: string
+  workspaceDirectory: string
+  status: 'success' | 'error' | 'stopped'
+  timestamp: number
+  durationMs: number
+  rewardScore: number
+  outcomeScore: number
+  efficiencyScore: number
+  safetyScore: number
+  contextScore: number
+  tokenDeltaInput: number
+  tokenDeltaOutput: number
+  contextFiles: number
+  toolCalls: number
+  fileWrites: number
+  unresolvedMentions: number
+  yoloMode: boolean
+  notes: string[]
+}
+
 export interface SchedulerTaskInput {
   id?: string
   name: string

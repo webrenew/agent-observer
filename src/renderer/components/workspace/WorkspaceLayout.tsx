@@ -991,12 +991,6 @@ export function WorkspaceLayout() {
     if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.4'
   }, [])
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '1'
-    setDraggedPanel(null)
-    setDropZone(null)
-  }, [])
-
   const handleDragOver = useCallback(
     (e: React.DragEvent, colIdx: number, rowIdx: number, slotIdx: number) => {
       e.preventDefault()
@@ -1315,7 +1309,6 @@ export function WorkspaceLayout() {
             <div data-col={colIdx} style={{ flex: `0 0 ${col.width * 100}%`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {col.rows.map((row, rowIdx) => {
                 const isFlex = row.height === -1
-                const isLastRow = rowIdx === col.rows.length - 1
 
                 return (
                   <Fragment key={rowIdx}>

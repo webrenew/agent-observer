@@ -1,10 +1,12 @@
 import { useAgentStore } from '../store/agents'
 import { useSettingsStore } from '../store/settings'
 import { calculateTotalCost } from '../lib/costEngine'
+import { useWorkspaceIntelligenceStore } from '../store/workspaceIntelligence'
 
 export function StatsBar() {
   const agents = useAgentStore((s) => s.agents)
   const subscription = useSettingsStore((s) => s.settings.subscription)
+  const latestReward = useWorkspaceIntelligenceStore((s) => s.rewards[s.rewards.length - 1] ?? null)
   const primaryAgents = agents.filter((a) => !a.isSubagent)
 
   const activeCount = primaryAgents.filter(
@@ -42,6 +44,24 @@ export function StatsBar() {
       <Stat label="Tokens In" value={formatNum(totalTokensIn)} />
       <Stat label="Tokens Out" value={formatNum(totalTokensOut)} />
       <Stat label="Files" value={totalFiles} />
+      <Stat
+        label="Context"
+        value={latestReward ? latestReward.contextFiles : 0}
+        color="#4C89D9"
+      />
+      <Stat
+        label="Reward"
+        value={latestReward ? latestReward.rewardScore : '--'}
+        color={
+          latestReward
+            ? latestReward.rewardScore >= 75
+              ? '#548C5A'
+              : latestReward.rewardScore >= 45
+                ? '#d4a040'
+                : '#c45050'
+            : '#595653'
+        }
+      />
 
       {isMax && cost > 0 ? (
         <>

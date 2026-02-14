@@ -8,6 +8,7 @@ import { setupLspHandlers, cleanupLspServers } from './lsp-manager'
 import { setupMemoriesHandlers, cleanupMemories } from './memories'
 import { setupAgentNamerHandlers } from './agent-namer'
 import { setupSchedulerHandlers, cleanupScheduler } from './scheduler'
+import { setupWorkspaceContextHandlers } from './workspace-context'
 import {
   addStartupBreadcrumb,
   flushStartupBreadcrumbs,
@@ -301,6 +302,7 @@ if (!gotTheLock) {
     runStartupStep('settings_handlers', () => setupSettingsHandlers())
     flushStartupBreadcrumbs()
     runStartupStep('filesystem_handlers', () => setupFilesystemHandlers(mainWindow!))
+    runStartupStep('workspace_context_handlers', () => setupWorkspaceContextHandlers())
     runStartupStep('lsp_handlers', () => setupLspHandlers(mainWindow!))
     runStartupStep('memories_handlers', () => setupMemoriesHandlers())
     runStartupStep('agent_namer_handlers', () => setupAgentNamerHandlers(mainWindow!))
