@@ -42,6 +42,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Audit dependencies (high+)
+        run: pnpm audit --audit-level=high
+
   smoke-desktop:
     name: Desktop Smoke (Electron)
     runs-on: macos-latest
