@@ -9,9 +9,9 @@ import { create } from 'zustand'
 import { useAgentStore } from './agents'
 
 const MAX_RECENT = 10
-const RECENT_KEY = 'agent-space:recentFolders'
-const LAST_WORKSPACE_KEY = 'agent-space:lastWorkspaceRoot'
-const TEMP_SMOKE_PATTERN = /(?:^|\/)agent-space-smoke-[^/]+(?:\/|$)/
+const RECENT_KEY = 'agent-observer:recentFolders'
+const LAST_WORKSPACE_KEY = 'agent-observer:lastWorkspaceRoot'
+const TEMP_SMOKE_PATTERN = /(?:^|\/)agent-observer-smoke-[^/]+(?:\/|$)/
 
 interface WorkspaceStore {
   /** Currently open folder path, or null if none */

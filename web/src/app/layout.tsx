@@ -108,9 +108,9 @@ export const metadata: Metadata = {
     images: [
       {
         url: SITE_OG_IMAGE,
-        width: 512,
-        height: 512,
-        alt: "Agent Space icon",
+        width: 1200,
+        height: 630,
+        alt: "Agent Observer Open Graph image",
       },
     ],
   },

@@ -112,7 +112,7 @@ export function ContentSection() {
               letterSpacing: -0.5,
             }}
           >
-            Agent Space mirrors the desktop mission-control UI on the web.
+            Agent Observer mirrors the desktop mission-control UI on the web.
           </h2>
           <p
             style={{
@@ -267,7 +267,7 @@ export function ContentSection() {
               lineHeight: 1.2,
             }}
           >
-            Download Agent Space and install in under a minute.
+            Download Agent Observer and install in under a minute.
           </h3>
           <p
             style={{
@@ -278,7 +278,7 @@ export function ContentSection() {
             }}
           >
             Get the latest desktop release from GitHub, open the DMG, and drag
-            Agent Space into your Applications folder.
+            Agent Observer into your Applications folder.
           </p>
 
           <div className="flex flex-wrap items-center gap-8">
@@ -321,8 +321,8 @@ export function ContentSection() {
             }}
           >
             <li>Open the latest release page and download the `.dmg` installer.</li>
-            <li>Open the DMG, then drag Agent Space into `Applications`.</li>
-            <li>Launch Agent Space from Applications and approve requested permissions.</li>
+            <li>Open the DMG, then drag Agent Observer into `Applications`.</li>
+            <li>Launch Agent Observer from Applications and approve requested permissions.</li>
           </ol>
         </div>
       </div>

@@ -47,7 +47,7 @@ const PANEL_SHORTCUT_LABELS: Partial<Record<PanelId, string>> = {
   fileSearch: SHORTCUTS.fileSearch.label,
   fileExplorer: SHORTCUTS.fileExplorer.label,
 }
-const WORKSPACE_LAYOUT_STATE_KEY = 'agent-space:workspaceLayoutState'
+const WORKSPACE_LAYOUT_STATE_KEY = 'agent-observer:workspaceLayoutState'
 
 // ── File open dispatcher ─────────────────────────────────────────────
 
@@ -798,7 +798,7 @@ function TopNav({
         </nav>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#74747C', fontSize: 'inherit' }}>
-        <span className="glow-amber" style={{ color: '#9A9692' }}>agent-space</span>
+        <span className="glow-amber" style={{ color: '#9A9692' }}>agent-observer</span>
         <span style={{ color: '#595653' }}>|</span>
         <span><strong style={{ color: '#9A9692' }}>{agentCount}</strong> agents</span>
         <span style={{ color: '#595653' }}>|</span>

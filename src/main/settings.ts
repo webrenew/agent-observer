@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     fontSize: 13,
     cursorStyle: 'bar',
     cursorBlink: true,
-    terminalTheme: 'agent-space',
+    terminalTheme: 'agent-observer',
   },
   terminal: {
     scrollbackLines: 5000,
@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
 }
 
-const SETTINGS_DIR = path.join(os.homedir(), '.agent-space')
+const SETTINGS_DIR = path.join(os.homedir(), '.agent-observer')
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'settings.json')
 
 let cachedSettings: AppSettings = { ...DEFAULT_SETTINGS }

@@ -121,7 +121,7 @@ export type PluginHookHandler<E extends PluginHookEvent = PluginHookEvent> =
   (payload: PluginHookEventPayloadMap[E]) => void | Promise<void>
 
 export type TerminalThemeName =
-  | 'agent-space'
+  | 'agent-observer'
   | 'dracula'
   | 'solarized-dark'
   | 'solarized-light'
@@ -481,7 +481,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     fontSize: 13,
     cursorStyle: 'bar',
     cursorBlink: true,
-    terminalTheme: 'agent-space',
+    terminalTheme: 'agent-observer',
   },
   terminal: {
     scrollbackLines: 5000,

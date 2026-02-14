@@ -1,12 +1,12 @@
 # Renderer Plugin SDK
 
-Agent Space can load renderer plugins from the `pluginDirs` configured in **Settings > General > Claude Profiles**.
+Agent Observer can load renderer plugins from the `pluginDirs` configured in **Settings > General > Claude Profiles**.
 
 ## Discovery
 
 Each directory is scanned for plugin manifests in this order:
 
-1. `agent-space.plugin.json`
+1. `agent-observer.plugin.json`
 2. `openclaw.plugin.json`
 3. `package.json` (with plugin hints like `agentSpace.rendererEntry`, `openclaw.rendererEntry`, `openclaw.extensions`, or plugin keywords)
 
@@ -77,7 +77,7 @@ Supported events:
 - `after_tool_call`
 - `tool_result_persist`
 
-`session_start` and `session_end` are kept for backwards compatibility with earlier Agent Space plugins.
+`session_start` and `session_end` are kept for backwards compatibility with earlier Agent Observer plugins.
 
 ### `api.registerCommand({ name, description?, execute })`
 

@@ -42,7 +42,7 @@ export function FallbackPage() {
               className="glow-amber"
               style={{ color: "#9A9692", fontSize: 15, fontWeight: 600 }}
             >
-              Agent Space
+              Agent Observer
             </span>
           </div>
           <h1

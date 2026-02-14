@@ -2,7 +2,7 @@ import type { ITheme } from '@xterm/xterm'
 import type { TerminalThemeName } from '../types'
 
 const themes: Record<TerminalThemeName, ITheme> = {
-  'agent-space': {
+  'agent-observer': {
     background: '#0E0E0D',
     foreground: '#9A9692',
     cursor: '#548C5A',
@@ -196,13 +196,13 @@ const themes: Record<TerminalThemeName, ITheme> = {
 }
 
 export function getTheme(name: TerminalThemeName): ITheme {
-  return themes[name] ?? themes['agent-space']
+  return themes[name] ?? themes['agent-observer']
 }
 
 export const THEME_NAMES = Object.keys(themes) as TerminalThemeName[]
 
 export const THEME_LABELS: Record<TerminalThemeName, string> = {
-  'agent-space': 'Agent Space',
+  'agent-observer': 'Agent Observer',
   dracula: 'Dracula',
   'solarized-dark': 'Solarized Dark',
   'solarized-light': 'Solarized Light',

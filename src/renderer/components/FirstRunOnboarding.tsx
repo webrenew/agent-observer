@@ -3,7 +3,7 @@ import type { AppSettings } from '../types'
 import { useSettingsStore } from '../store/settings'
 import { useWorkspaceStore } from '../store/workspace'
 
-const ONBOARDING_DONE_KEY = 'agent-space:onboarding:v1'
+const ONBOARDING_DONE_KEY = 'agent-observer:onboarding:v1'
 
 interface ClaudeCheckState {
   status: 'idle' | 'checking' | 'ok' | 'error'

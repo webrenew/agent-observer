@@ -10,7 +10,7 @@ function LoadingScreen() {
     <div className="absolute inset-0 flex items-center justify-center bg-[#0e0e0d]">
       <div className="text-center">
         <div className="text-sm font-medium text-[#9A9692]">
-          Loading Agent Space...
+          Loading Agent Observer...
         </div>
         <div className="mt-2 h-1 w-48 overflow-hidden rounded-full bg-[#1a1a19]">
           <div className="h-full w-1/2 animate-pulse rounded-full bg-[#548C5A]" />

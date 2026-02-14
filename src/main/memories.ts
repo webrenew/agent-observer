@@ -96,7 +96,7 @@ function resolveMemoriesBinary(): string | null {
 // ── MCP Client Lifecycle ───────────────────────────────────────────────
 
 function getDataDir(): string {
-  const dir = path.join(os.homedir(), '.agent-space', 'memories')
+  const dir = path.join(os.homedir(), '.agent-observer', 'memories')
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
@@ -129,7 +129,7 @@ async function startMcpServer(): Promise<void> {
     })
 
     mcpClient = new Client({
-      name: 'agent-space',
+      name: 'agent-observer',
       version: '1.0.0',
     })
 

@@ -1,6 +1,6 @@
-# Agent Space
+# Agent Observer
 
-> Agent Space is mission control for AI coding agents. It provides a shared office view, live telemetry, workspace-scoped context, and desktop controls for day-to-day operations.
+> Agent Observer is mission control for AI coding agents. It provides a shared office view, live telemetry, workspace-scoped context, and desktop controls for day-to-day operations.
 
 ## Canonical sources
 
@@ -38,7 +38,7 @@
 ## Install
 
 1. Download the latest `.dmg` from releases.
-2. Open the DMG and drag Agent Space into `Applications`.
+2. Open the DMG and drag Agent Observer into `Applications`.
 3. Launch from `Applications` and approve requested permissions.
 
 ## Documentation API

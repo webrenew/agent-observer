@@ -841,7 +841,7 @@ export function SettingsPanel() {
                   />
                 </Row>
                 <div style={{ fontSize: 11, color: '#595653', lineHeight: 1.5 }}>
-                  Stores local crash and startup diagnostics in <code>~/.agent-space/telemetry.ndjson</code>.
+                  Stores local crash and startup diagnostics in <code>~/.agent-observer/telemetry.ndjson</code>.
                 </div>
               </Section>
               <Section title="CLAUDE PROFILES">
@@ -1011,7 +1011,7 @@ export function SettingsPanel() {
                         type="text"
                         value={profile.settingsPath}
                         onChange={(e) => updateClaudeProfile(profile.id, { settingsPath: e.target.value })}
-                        placeholder="~/.agent-space/claude-profiles/work/settings.json"
+                        placeholder="~/.agent-observer/claude-profiles/work/settings.json"
                         style={{
                           width: 320,
                           background: 'rgba(89,86,83,0.15)',
@@ -1031,7 +1031,7 @@ export function SettingsPanel() {
                         type="text"
                         value={profile.mcpConfigPath}
                         onChange={(e) => updateClaudeProfile(profile.id, { mcpConfigPath: e.target.value })}
-                        placeholder="~/.agent-space/claude-profiles/work/mcp.json"
+                        placeholder="~/.agent-observer/claude-profiles/work/mcp.json"
                         style={{
                           width: 320,
                           background: 'rgba(89,86,83,0.15)',

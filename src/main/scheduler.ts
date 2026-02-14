@@ -65,7 +65,7 @@ interface ParsedCron {
   dayOfWeek: ParsedCronField
 }
 
-const SCHEDULER_DIR = path.join(os.homedir(), '.agent-space')
+const SCHEDULER_DIR = path.join(os.homedir(), '.agent-observer')
 const SCHEDULER_FILE = path.join(SCHEDULER_DIR, 'schedules.json')
 const SCHEDULER_MAX_SCAN_MINUTES = 366 * 24 * 60
 const SCHEDULER_TICK_MS = 10_000

@@ -1,4 +1,4 @@
-# Agent Space
+# Agent Observer
 
 3D observability app for AI coding agents. Electron desktop app that embeds real terminal sessions and visualizes Claude Code agents as voxel characters working in an isometric office.
 

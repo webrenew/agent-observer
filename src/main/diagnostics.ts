@@ -29,7 +29,7 @@ function getLogsDirPath(): string {
   try {
     return path.join(app.getPath('userData'), LOG_DIR_NAME)
   } catch {
-    return path.join(os.homedir(), '.agent-space', LOG_DIR_NAME)
+    return path.join(os.homedir(), '.agent-observer', LOG_DIR_NAME)
   }
 }
 

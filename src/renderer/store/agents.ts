@@ -69,8 +69,8 @@ export interface Toast {
 
 let toastCounter = 0
 let eventCounter = 0
-const CHAT_STATE_KEY = 'agent-space:chatState'
-const TEMP_SMOKE_PATTERN = /(?:^|\/)agent-space-smoke-[^/]+(?:\/|$)/
+const CHAT_STATE_KEY = 'agent-observer:chatState'
+const TEMP_SMOKE_PATTERN = /(?:^|\/)agent-observer-smoke-[^/]+(?:\/|$)/
 
 interface PersistedChatSession {
   id: string

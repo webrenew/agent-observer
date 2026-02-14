@@ -55,7 +55,7 @@ Each job includes:
 
 ## Runner Contract
 
-Agent Space executes your runner command in the job directory and passes context through both env vars and stdin JSON.
+Agent Observer executes your runner command in the job directory and passes context through both env vars and stdin JSON.
 
 ### Environment Variables
 
@@ -118,7 +118,7 @@ Before running a 100+ item list:
 
 Todo job definitions and item states are persisted locally:
 
-- `~/.agent-space/todo-runner.json`
+- `~/.agent-observer/todo-runner.json`
 
 If the app restarts, saved state is reloaded and unfinished work can be resumed.
 

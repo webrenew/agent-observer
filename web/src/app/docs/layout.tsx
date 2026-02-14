@@ -25,7 +25,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               }}
             >
               <span style={{ color: "#d4a040" }}>⬢</span>
-              Agent Space Docs
+              Agent Observer Docs
             </span>
           ),
         }}

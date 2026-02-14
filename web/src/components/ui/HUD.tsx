@@ -224,7 +224,7 @@ function TopBar({
         }}
       >
         <span className="glow-amber hidden md:inline" style={{ color: "#9A9692" }}>
-          agent-space
+          agent-observer
         </span>
         <span style={{ color: "#595653" }}>|</span>
         <span>

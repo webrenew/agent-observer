@@ -9,7 +9,7 @@ interface TelemetryEntry {
   payload?: Record<string, unknown>
 }
 
-const TELEMETRY_DIR = path.join(os.homedir(), '.agent-space')
+const TELEMETRY_DIR = path.join(os.homedir(), '.agent-observer')
 const TELEMETRY_FILE = path.join(TELEMETRY_DIR, 'telemetry.ndjson')
 const STARTUP_BREADCRUMB_LIMIT = 200
 

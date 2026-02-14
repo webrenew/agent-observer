@@ -43,7 +43,7 @@ interface RawDiscoveredPlugin {
   description: string | null
   rootDir: string
   manifestPath: string
-  source: 'agent-space.plugin.json' | 'openclaw.plugin.json' | 'package.json'
+  source: 'agent-observer.plugin.json' | 'openclaw.plugin.json' | 'package.json'
   rendererEntry: string | null
 }
 
@@ -419,7 +419,7 @@ function readManifestMetadata(
 async function detectPluginAtRoot(rootDir: string): Promise<RawDiscoveredPlugin | null> {
   const fallbackName = getPathBaseName(rootDir)
 
-  const agentSpaceManifestPath = joinPath(rootDir, 'agent-space.plugin.json')
+  const agentSpaceManifestPath = joinPath(rootDir, 'agent-observer.plugin.json')
   const agentSpaceManifest = await readJsonFile(agentSpaceManifestPath)
   if (agentSpaceManifest) {
     const metadata = readManifestMetadata(agentSpaceManifest, fallbackName)
@@ -427,7 +427,7 @@ async function detectPluginAtRoot(rootDir: string): Promise<RawDiscoveredPlugin 
       ...metadata,
       rootDir,
       manifestPath: agentSpaceManifestPath,
-      source: 'agent-space.plugin.json',
+      source: 'agent-observer.plugin.json',
     }
   }
 
@@ -452,7 +452,7 @@ async function detectPluginAtRoot(rootDir: string): Promise<RawDiscoveredPlugin 
   const extensionEntries = asStringArray(openClawConfig?.extensions)
   const packageKeywords = asStringArray(packageJson.keywords)
   const hasPluginKeyword = packageKeywords.some((keyword) =>
-    keyword === 'openclaw-plugin' || keyword === 'agent-space-plugin'
+    keyword === 'openclaw-plugin' || keyword === 'agent-observer-plugin'
   )
   const metadata = readManifestMetadata(packageJson, fallbackName)
   const rendererEntryFromConfig = asString(agentSpaceConfig?.rendererEntry)

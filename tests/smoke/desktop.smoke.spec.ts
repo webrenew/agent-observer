@@ -6,7 +6,7 @@ import { test, expect, _electron as electron } from '@playwright/test'
 test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', async () => {
   let tempFolder: string | null = null
   let tempUserDataDir: string | null = null
-  tempUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-space-userdata-'))
+  tempUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-observer-userdata-'))
 
   const electronApp = await electron.launch({
     cwd: process.cwd(),
@@ -130,7 +130,7 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
       delete g.__smokeDialogParentDestroyed
     })
 
-    tempFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-space-smoke-'))
+    tempFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-observer-smoke-'))
     const tempFolderName = path.basename(tempFolder)
 
     await electronApp.evaluate(({ BrowserWindow }, folderPath) => {

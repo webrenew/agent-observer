@@ -5,7 +5,7 @@ description: Scope and context persistence model for chat, schedules, and todo-r
 
 # Memory and Scope
 
-In Agent Space, "memory" is operationally tied to workspace scope and persisted automation state.
+In Agent Observer, "memory" is operationally tied to workspace scope and persisted automation state.
 
 ## Scope Is The First Memory Boundary
 
@@ -28,12 +28,12 @@ If scope is wrong, downstream memory/context quality is wrong.
 ### Scheduler State
 
 - recurring task definitions and runtime metadata
-- persisted locally in `~/.agent-space/schedules.json`
+- persisted locally in `~/.agent-observer/schedules.json`
 
 ### Todo Runner State
 
 - checklist items, progress, retry state, blocked items
-- persisted locally in `~/.agent-space/todo-runner.json`
+- persisted locally in `~/.agent-observer/todo-runner.json`
 
 ## Practical Memory Hygiene
 
