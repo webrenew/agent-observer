@@ -137,11 +137,13 @@ function Bookshelf({
 
 function MonitorWall({
   position,
+  rotation = [0, 0, 0],
 }: {
   position: [number, number, number];
+  rotation?: [number, number, number];
 }) {
   return (
-    <group position={position}>
+    <group position={position} rotation={rotation}>
       {Array.from({ length: 6 }).map((_, i) => {
         const row = Math.floor(i / 3);
         const col = i % 3;
@@ -507,8 +509,8 @@ export function Office() {
         </group>
       )}
 
-      {/* Monitor wall */}
-      <MonitorWall position={[10.8, 0, -3]} />
+      {/* Monitor wall mounted flush on right wall */}
+      <MonitorWall position={[10.88, 0, -5]} rotation={[0, -Math.PI / 2, 0]} />
 
       {/* Task board */}
       <TaskBoard position={[0, 1.8, -13.85]} />
