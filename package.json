@@ -41,7 +41,7 @@
     ]
   },
   "dependencies": {
-    "@memories.sh/cli": "^0.7.1",
+    "@memories.sh/cli": "^0.7.6",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@monaco-editor/react": "^4.7.0",
     "@react-three/drei": "^10.0.0",
