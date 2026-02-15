@@ -81,7 +81,6 @@ jobs:
 
   smoke-desktop:
     name: Desktop Smoke (Electron)
-    if: github.event_name == 'push'
     needs:
       - desktop-checks
       - frontend-checks
