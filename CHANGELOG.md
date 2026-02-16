@@ -20,6 +20,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   when a newer version is available.
 - Added a release workflow that builds macOS `.dmg` installers and uploads them
   to GitHub releases on publish.
+- Editor now supports staged image proposal diffs with apply/discard, while
+  unsupported non-text formats show explicit external-compare fallback guidance.
 
 ### Changed
 
