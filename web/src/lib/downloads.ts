@@ -7,11 +7,14 @@ export const AGENT_SPACE_RELEASES_API_URL =
   "https://api.github.com/repos/webrenew/agent-observer/releases/latest";
 export const AGENT_SPACE_RELEASES_LIST_API_URL =
   "https://api.github.com/repos/webrenew/agent-observer/releases?per_page=10";
+export const AGENT_SPACE_RELEASES_COUNT_API_URL =
+  "https://api.github.com/repos/webrenew/agent-observer/releases?per_page=100";
 
 export interface GitHubReleaseAsset {
   name: string;
   browser_download_url: string;
   content_type?: string | null;
+  download_count?: number | null;
 }
 
 export interface GitHubLatestRelease {
@@ -29,7 +32,7 @@ export interface GitHubReleaseSummary {
 const APPLE_DISK_IMAGE_CONTENT_TYPE = "application/x-apple-diskimage";
 const ARM64_NAME_MARKERS = ["arm64", "aarch64", "apple-silicon", "apple_silicon"];
 
-function isMacInstallerAsset(asset: GitHubReleaseAsset): boolean {
+export function isMacInstallerAsset(asset: GitHubReleaseAsset): boolean {
   const contentType = asset.content_type?.toLowerCase();
   return (
     asset.name.toLowerCase().endsWith(".dmg") ||
