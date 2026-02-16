@@ -97,9 +97,17 @@ After saving a schedule:
 - Operator signal: diagnostics event `scheduler.tick.backlog_capped`.
 - Optional override: `AGENT_SPACE_SCHEDULER_PENDING_BACKLOG_LIMIT` (`1` to `1440`).
 
+### Minute Dedupe Ledger
+
+- Scheduler persists the last processed cron minute per task across app restarts.
+- Deduplication window defaults to `1440` minutes (`24h`).
+- Optional override: `AGENT_SPACE_SCHEDULER_MINUTE_LEDGER_RETENTION_MINUTES` (`0` to `43200`).
+- Operator signal: diagnostics event `scheduler.ledger.pruned`.
+
 Persistence location:
 
 - `~/.agent-observer/schedules.json`
+- `~/.agent-observer/scheduler-minute-ledger.json`
 
 ## Failure Modes And Fixes
 

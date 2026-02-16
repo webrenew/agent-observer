@@ -57,6 +57,12 @@ Fix:
 3. Verify runtime dependencies for your command/tooling.
 4. Tighten prompt and retry manually.
 
+## Duplicate Scheduled Run After Restart
+
+1. Check diagnostics for `scheduler.ledger.pruned`.
+2. Verify `AGENT_SPACE_SCHEDULER_MINUTE_LEDGER_RETENTION_MINUTES` is not set too low.
+3. Confirm `~/.agent-observer/scheduler-minute-ledger.json` is writable.
+
 ## Todo Runner Job Not Progressing
 
 1. Verify **Runner command** exists and is executable.

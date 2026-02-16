@@ -82,6 +82,17 @@ interface PendingSchedulerCronRun {
   minuteKey: string
 }
 
+interface SchedulerMinuteLedgerEntry {
+  minuteKey: string
+  recordedAtMs: number
+}
+
+export interface SchedulerMinuteLedgerSnapshotEntry {
+  taskId: string
+  minuteKey: string
+  recordedAtMs: number
+}
+
 interface ParsedCronField {
   values: Set<number>
   wildcard: boolean
@@ -97,10 +108,13 @@ interface ParsedCron {
 
 const SCHEDULER_DIR = path.join(os.homedir(), '.agent-observer')
 const SCHEDULER_FILE = path.join(SCHEDULER_DIR, 'schedules.json')
+const SCHEDULER_MINUTE_LEDGER_FILE = path.join(SCHEDULER_DIR, 'scheduler-minute-ledger.json')
 const SCHEDULER_MAX_SCAN_MINUTES = 366 * 24 * 60
 const SCHEDULER_TICK_MS = 10_000
 const SCHEDULER_BACKFILL_DEFAULT_WINDOW_MINUTES = 15
 const SCHEDULER_BACKFILL_MAX_WINDOW_MINUTES = 24 * 60
+const SCHEDULER_MINUTE_LEDGER_DEFAULT_RETENTION_MINUTES = 24 * 60
+const SCHEDULER_MINUTE_LEDGER_MAX_RETENTION_MINUTES = 30 * 24 * 60
 const SCHEDULER_PENDING_CRON_BACKLOG_DEFAULT_LIMIT = 240
 const SCHEDULER_PENDING_CRON_BACKLOG_MAX_LIMIT = 24 * 60
 const SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
@@ -119,6 +133,7 @@ let tasksCache: SchedulerTask[] = []
 const runtimeByTaskId = new Map<string, SchedulerTaskRuntime>()
 const runningProcessByTaskId = new Map<string, ChildProcess>()
 const pendingCronRunsByTaskId = new Map<string, PendingSchedulerCronRun[]>()
+const minuteLedgerByTaskId = new Map<string, SchedulerMinuteLedgerEntry>()
 const cronDispatchInFlightByTaskId = new Set<string>()
 const dispatchPromiseByTaskId = new Map<string, Promise<void>>()
 const cronParseCache = new Map<string, ParsedCron>()
@@ -162,6 +177,30 @@ function resolveSchedulerBackfillWindowMinutes(): number {
       clampedMinutes: SCHEDULER_BACKFILL_MAX_WINDOW_MINUTES,
     }, 'warn')
     return SCHEDULER_BACKFILL_MAX_WINDOW_MINUTES
+  }
+  return parsed
+}
+
+function resolveSchedulerMinuteLedgerRetentionMinutes(): number {
+  const rawValue = process.env.AGENT_SPACE_SCHEDULER_MINUTE_LEDGER_RETENTION_MINUTES
+  if (!rawValue) return SCHEDULER_MINUTE_LEDGER_DEFAULT_RETENTION_MINUTES
+
+  const parsed = Number.parseInt(rawValue, 10)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    logMainEvent('scheduler.ledger.invalid_retention_config', {
+      rawValue,
+      fallbackMinutes: SCHEDULER_MINUTE_LEDGER_DEFAULT_RETENTION_MINUTES,
+    }, 'warn')
+    return SCHEDULER_MINUTE_LEDGER_DEFAULT_RETENTION_MINUTES
+  }
+
+  if (parsed > SCHEDULER_MINUTE_LEDGER_MAX_RETENTION_MINUTES) {
+    logMainEvent('scheduler.ledger.clamped_retention_config', {
+      rawValue,
+      parsed,
+      clampedMinutes: SCHEDULER_MINUTE_LEDGER_MAX_RETENTION_MINUTES,
+    }, 'warn')
+    return SCHEDULER_MINUTE_LEDGER_MAX_RETENTION_MINUTES
   }
   return parsed
 }
@@ -219,6 +258,15 @@ export function __testOnlyShouldRequeuePendingCronRun(started: boolean, isShutti
   return !started && !isShuttingDown
 }
 
+export function __testOnlyShouldEnqueuePendingCronMinute(
+  lastRunMinuteKey: string | null,
+  pendingMinuteKeys: string[],
+  runMinuteKey: string
+): boolean {
+  if (lastRunMinuteKey === runMinuteKey) return false
+  return !pendingMinuteKeys.includes(runMinuteKey)
+}
+
 export function __testOnlyBoundPendingCronQueueByLimit<T>(
   queue: readonly T[],
   backlogLimit: number
@@ -238,6 +286,50 @@ export function __testOnlyBoundPendingCronQueueByLimit<T>(
   return {
     keptQueue: queue.slice(droppedCount),
     droppedQueue: queue.slice(0, droppedCount),
+  }
+}
+
+export function __testOnlyPruneSchedulerMinuteLedgerEntries(
+  entries: SchedulerMinuteLedgerSnapshotEntry[],
+  nowTimestampMs: number,
+  retentionMinutes: number,
+  activeTaskIds: string[]
+): {
+  keptEntries: SchedulerMinuteLedgerSnapshotEntry[]
+  droppedEntries: SchedulerMinuteLedgerSnapshotEntry[]
+} {
+  const normalizedRetentionMinutes = Math.max(
+    0,
+    Number.isFinite(retentionMinutes) ? Math.floor(retentionMinutes) : 0
+  )
+  const cutoffTimestampMs = nowTimestampMs - (normalizedRetentionMinutes * 60_000)
+  const activeTaskIdSet = new Set(activeTaskIds)
+  const sortedEntries = [...entries]
+    .sort((a, b) => b.recordedAtMs - a.recordedAtMs)
+
+  const keptByTaskId = new Map<string, SchedulerMinuteLedgerSnapshotEntry>()
+  const droppedEntries: SchedulerMinuteLedgerSnapshotEntry[] = []
+
+  for (const entry of sortedEntries) {
+    const isActiveTask = activeTaskIdSet.has(entry.taskId)
+    const isExpired = entry.recordedAtMs < cutoffTimestampMs
+    const hasMinuteKey = typeof entry.minuteKey === 'string' && entry.minuteKey.trim().length > 0
+    if (!isActiveTask || isExpired || !hasMinuteKey || keptByTaskId.has(entry.taskId)) {
+      droppedEntries.push(entry)
+      continue
+    }
+
+    keptByTaskId.set(entry.taskId, {
+      taskId: entry.taskId,
+      minuteKey: entry.minuteKey,
+      recordedAtMs: entry.recordedAtMs,
+    })
+  }
+
+  const keptEntries = [...keptByTaskId.values()].sort((a, b) => a.taskId.localeCompare(b.taskId))
+  return {
+    keptEntries,
+    droppedEntries,
   }
 }
 
@@ -350,6 +442,140 @@ function minuteKey(date: Date): string {
 
 function floorToMinuteTimestamp(timestampMs: number): number {
   return Math.floor(timestampMs / 60_000) * 60_000
+}
+
+function snapshotSchedulerMinuteLedgerEntries(): SchedulerMinuteLedgerSnapshotEntry[] {
+  const entries: SchedulerMinuteLedgerSnapshotEntry[] = []
+  for (const [taskId, entry] of minuteLedgerByTaskId.entries()) {
+    entries.push({
+      taskId,
+      minuteKey: entry.minuteKey,
+      recordedAtMs: entry.recordedAtMs,
+    })
+  }
+  return entries
+}
+
+function readSchedulerMinuteLedgerEntriesFromDisk(): SchedulerMinuteLedgerSnapshotEntry[] {
+  ensureSchedulerDir()
+  if (!fs.existsSync(SCHEDULER_MINUTE_LEDGER_FILE)) return []
+
+  try {
+    const raw = fs.readFileSync(SCHEDULER_MINUTE_LEDGER_FILE, 'utf-8')
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return []
+
+    const entries: SchedulerMinuteLedgerSnapshotEntry[] = []
+    for (const [taskId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue
+      const candidate = value as Record<string, unknown>
+      const minute = typeof candidate.minuteKey === 'string' ? candidate.minuteKey.trim() : ''
+      const recordedAtMs = typeof candidate.recordedAtMs === 'number' ? candidate.recordedAtMs : 0
+      if (!minute) continue
+      if (!Number.isFinite(recordedAtMs)) continue
+      entries.push({
+        taskId,
+        minuteKey: minute,
+        recordedAtMs,
+      })
+    }
+
+    return entries
+  } catch (err) {
+    logMainError('scheduler.ledger.read_failed', err)
+    return []
+  }
+}
+
+function writeSchedulerMinuteLedgerEntriesToDisk(entries: SchedulerMinuteLedgerSnapshotEntry[]): void {
+  ensureSchedulerDir()
+  const serialized: Record<string, { minuteKey: string; recordedAtMs: number }> = {}
+  for (const entry of entries) {
+    serialized[entry.taskId] = {
+      minuteKey: entry.minuteKey,
+      recordedAtMs: entry.recordedAtMs,
+    }
+  }
+  writeFileAtomicSync(SCHEDULER_MINUTE_LEDGER_FILE, JSON.stringify(serialized, null, 2))
+}
+
+function applySchedulerMinuteLedgerEntries(entries: SchedulerMinuteLedgerSnapshotEntry[]): void {
+  minuteLedgerByTaskId.clear()
+  for (const entry of entries) {
+    minuteLedgerByTaskId.set(entry.taskId, {
+      minuteKey: entry.minuteKey,
+      recordedAtMs: entry.recordedAtMs,
+    })
+  }
+}
+
+function loadSchedulerMinuteLedger(activeTaskIds: string[]): void {
+  const rawEntries = readSchedulerMinuteLedgerEntriesFromDisk()
+  const retentionMinutes = resolveSchedulerMinuteLedgerRetentionMinutes()
+  const pruned = __testOnlyPruneSchedulerMinuteLedgerEntries(
+    rawEntries,
+    Date.now(),
+    retentionMinutes,
+    activeTaskIds
+  )
+
+  applySchedulerMinuteLedgerEntries(pruned.keptEntries)
+
+  if (pruned.droppedEntries.length > 0 || pruned.keptEntries.length !== rawEntries.length) {
+    try {
+      writeSchedulerMinuteLedgerEntriesToDisk(pruned.keptEntries)
+    } catch (err) {
+      logMainError('scheduler.ledger.write_failed', err, {
+        source: 'load',
+        entryCount: pruned.keptEntries.length,
+      })
+    }
+    logMainEvent('scheduler.ledger.pruned', {
+      droppedEntryCount: pruned.droppedEntries.length,
+      keptEntryCount: pruned.keptEntries.length,
+      retentionMinutes,
+    }, 'warn')
+  }
+}
+
+function persistSchedulerMinuteLedger(activeTaskIds: string[]): void {
+  const retentionMinutes = resolveSchedulerMinuteLedgerRetentionMinutes()
+  const snapshot = snapshotSchedulerMinuteLedgerEntries()
+  const pruned = __testOnlyPruneSchedulerMinuteLedgerEntries(
+    snapshot,
+    Date.now(),
+    retentionMinutes,
+    activeTaskIds
+  )
+
+  applySchedulerMinuteLedgerEntries(pruned.keptEntries)
+  try {
+    writeSchedulerMinuteLedgerEntriesToDisk(pruned.keptEntries)
+  } catch (err) {
+    logMainError('scheduler.ledger.write_failed', err, {
+      source: 'persist',
+      entryCount: pruned.keptEntries.length,
+    })
+  }
+
+  if (pruned.droppedEntries.length > 0) {
+    logMainEvent('scheduler.ledger.pruned', {
+      droppedEntryCount: pruned.droppedEntries.length,
+      keptEntryCount: pruned.keptEntries.length,
+      retentionMinutes,
+    }, 'warn')
+  }
+}
+
+function recordSchedulerRunMinute(taskId: string, runMinuteKey: string): void {
+  const existing = minuteLedgerByTaskId.get(taskId)
+  if (existing?.minuteKey === runMinuteKey) return
+
+  minuteLedgerByTaskId.set(taskId, {
+    minuteKey: runMinuteKey,
+    recordedAtMs: Date.now(),
+  })
+  persistSchedulerMinuteLedger(tasksCache.map((task) => task.id))
 }
 
 function parseCronFieldPart(part: string, min: number, max: number, mapDow = false): number[] {
@@ -563,8 +789,15 @@ function writeTasksToDisk(tasks: SchedulerTask[]): void {
 
 function loadTasksCache(): void {
   tasksCache = readTasksFromDisk()
+  loadSchedulerMinuteLedger(tasksCache.map((task) => task.id))
   for (const task of tasksCache) {
     const runtime = runtimeByTaskId.get(task.id) ?? createRuntime()
+    if (!runtime.lastRunMinuteKey) {
+      const ledgerEntry = minuteLedgerByTaskId.get(task.id)
+      if (ledgerEntry) {
+        runtime.lastRunMinuteKey = ledgerEntry.minuteKey
+      }
+    }
     const validationError = loadValidationErrorsByTaskId.get(task.id)
     if (validationError) {
       runtime.lastStatus = 'error'
@@ -781,9 +1014,11 @@ async function deleteTaskAndAwaitStop(taskId: string): Promise<SchedulerDeleteRe
   tasksCache = tasksCache.filter((task) => task.id !== taskId)
   runtimeByTaskId.delete(taskId)
   pendingCronRunsByTaskId.delete(taskId)
+  minuteLedgerByTaskId.delete(taskId)
   cronDispatchInFlightByTaskId.delete(taskId)
   loadValidationErrorsByTaskId.delete(taskId)
   cronParseCache.clear()
+  persistSchedulerMinuteLedger(tasksCache.map((task) => task.id))
 
   writeTasksToDisk(tasksCache)
   logMainEvent('scheduler.delete.completed', {
@@ -853,6 +1088,7 @@ async function runTask(
   runtime.lastRunTrigger = trigger
   if (effectiveScheduledMinuteKey) {
     runtime.lastRunMinuteKey = effectiveScheduledMinuteKey
+    recordSchedulerRunMinute(task.id, effectiveScheduledMinuteKey)
   }
   runtime.lastScheduledMinuteKey = effectiveScheduledMinuteKey
   runtime.lastBackfillMinutes = effectiveBackfillMinutes
@@ -1150,10 +1386,12 @@ function applyPendingCronBacklogLimit(task: SchedulerTask, pendingRuns: PendingS
 function enqueuePendingCronRun(task: SchedulerTask, minuteTimestampMs: number, nowMinuteTimestampMs: number): boolean {
   const runMinuteKey = minuteKey(new Date(minuteTimestampMs))
   const runtime = runtimeByTaskId.get(task.id) ?? createRuntime()
-  if (runtime.lastRunMinuteKey === runMinuteKey) return false
-
   const pendingRuns = pendingCronRunsByTaskId.get(task.id) ?? []
-  if (pendingRuns.some((pending) => pending.minuteKey === runMinuteKey)) {
+  if (!__testOnlyShouldEnqueuePendingCronMinute(
+    runtime.lastRunMinuteKey,
+    pendingRuns.map((pending) => pending.minuteKey),
+    runMinuteKey
+  )) {
     return false
   }
 
