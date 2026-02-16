@@ -57,6 +57,8 @@ export const IPC_CHANNELS = {
   claude: {
     start: 'claude:start',
     stop: 'claude:stop',
+    observeSession: 'claude:observeSession',
+    unobserveSession: 'claude:unobserveSession',
     isAvailable: 'claude:isAvailable',
     event: 'claude:event',
   },
@@ -215,6 +217,8 @@ export interface ElectronAPI {
   claude: {
     start: (options: ClaudeSessionOptions) => Promise<{ sessionId: string }>
     stop: (sessionId: string) => Promise<void>
+    observeSession: (sessionId: string) => Promise<void>
+    unobserveSession: (sessionId: string) => Promise<void>
     isAvailable: () => Promise<{ available: boolean; binaryPath: string | null; version: string | null; error?: string }>
     onEvent: (callback: (event: ClaudeEvent) => void) => Unsubscribe
   }

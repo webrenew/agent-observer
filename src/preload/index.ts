@@ -115,6 +115,8 @@ const electronAPI: ElectronAPI = {
   claude: {
     start: invokeFor<ElectronAPI['claude']['start']>(IPC_CHANNELS.claude.start),
     stop: invokeFor<ElectronAPI['claude']['stop']>(IPC_CHANNELS.claude.stop),
+    observeSession: invokeFor<ElectronAPI['claude']['observeSession']>(IPC_CHANNELS.claude.observeSession),
+    unobserveSession: invokeFor<ElectronAPI['claude']['unobserveSession']>(IPC_CHANNELS.claude.unobserveSession),
     isAvailable: invokeFor<ElectronAPI['claude']['isAvailable']>(IPC_CHANNELS.claude.isAvailable),
     onEvent: subscribeFor<SubscriptionCallback<ElectronAPI['claude']['onEvent']>>(IPC_CHANNELS.claude.event),
   },
