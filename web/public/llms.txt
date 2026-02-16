@@ -6,8 +6,8 @@
 
 - Website: /
 - Installer: /download
-- Repository: https://github.com/webrenew/agent-space
-- Releases: https://github.com/webrenew/agent-space/releases/latest
+- Repository: https://github.com/webrenew/agent-observer
+- Releases: https://github.com/webrenew/agent-observer/releases/latest
 
 ## Key pages
 

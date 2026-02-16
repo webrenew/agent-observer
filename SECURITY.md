@@ -12,7 +12,7 @@ Please do not report security vulnerabilities in public GitHub issues.
 Use one of the following private channels:
 
 1. GitHub Security Advisories:
-   [https://github.com/webrenew/agent-space/security/advisories/new](https://github.com/webrenew/agent-space/security/advisories/new)
+   [https://github.com/webrenew/agent-observer/security/advisories/new](https://github.com/webrenew/agent-observer/security/advisories/new)
 2. Email: `opensource@webrenew.com`
 
 Please include:

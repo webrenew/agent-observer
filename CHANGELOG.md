@@ -28,5 +28,5 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Improved office scene styling and parity between desktop and web interactions.
 
-[Unreleased]: https://github.com/webrenew/agent-space/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/webrenew/agent-space/releases/tag/v1.1.0
+[Unreleased]: https://github.com/webrenew/agent-observer/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/webrenew/agent-observer/releases/tag/v1.1.0
