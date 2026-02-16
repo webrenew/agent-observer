@@ -96,12 +96,14 @@ const SCHEDULER_BACKFILL_DEFAULT_WINDOW_MINUTES = 15
 const SCHEDULER_BACKFILL_MAX_WINDOW_MINUTES = 24 * 60
 const SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
 const SCHEDULER_FORCE_KILL_TIMEOUT_MS = 10_000
+const SCHEDULER_DISPATCH_DRAIN_TIMEOUT_MS = 5_000
 const INVALID_CRON_ERROR_PREFIX = 'Invalid cron expression:'
 
 let handlersRegistered = false
 let schedulerTimer: NodeJS.Timeout | null = null
 let schedulerTickInFlight = false
 let schedulerTickRequested = false
+let schedulerShuttingDown = false
 let lastSuccessfulSchedulerTickAt: number | null = null
 let tasksCache: SchedulerTask[] = []
 
@@ -109,6 +111,7 @@ const runtimeByTaskId = new Map<string, SchedulerTaskRuntime>()
 const runningProcessByTaskId = new Map<string, ChildProcess>()
 const pendingCronRunsByTaskId = new Map<string, PendingSchedulerCronRun[]>()
 const cronDispatchInFlightByTaskId = new Set<string>()
+const dispatchPromiseByTaskId = new Map<string, Promise<void>>()
 const cronParseCache = new Map<string, ParsedCron>()
 const loadValidationErrorsByTaskId = new Map<string, string>()
 const forceKillTimerByTaskId = new Map<string, NodeJS.Timeout>()
@@ -154,6 +157,19 @@ function resolveSchedulerBackfillWindowMinutes(): number {
   return parsed
 }
 
+function resolveSchedulerDispatchDrainTimeoutMs(): number {
+  return resolveManagedRuntimeMs({
+    envVarName: 'AGENT_SPACE_SCHEDULER_DISPATCH_DRAIN_TIMEOUT_MS',
+    defaultMs: SCHEDULER_DISPATCH_DRAIN_TIMEOUT_MS,
+    onInvalidConfig: (rawValue, fallbackMs) => {
+      logMainEvent('scheduler.cleanup.invalid_dispatch_drain_timeout_config', {
+        rawValue,
+        fallbackMs,
+      }, 'warn')
+    },
+  })
+}
+
 function clearSchedulerForceKillTimer(taskId: string): void {
   clearManagedForceKillTimer(forceKillTimerByTaskId, taskId)
 }
@@ -171,6 +187,52 @@ function scheduleSchedulerForceKill(taskId: string, proc: ChildProcess, reason: 
       logMainError('scheduler.process.force_kill_failed', err, { taskId, reason })
     },
   })
+}
+
+export function __testOnlyCanDispatchPendingCronRun(
+  isShuttingDown: boolean,
+  dispatchInFlight: boolean,
+  taskRunning: boolean
+): boolean {
+  return !(isShuttingDown || dispatchInFlight || taskRunning)
+}
+
+export function __testOnlyShouldRequeuePendingCronRun(started: boolean, isShuttingDown: boolean): boolean {
+  return !started && !isShuttingDown
+}
+
+function canDispatchPendingCronRun(taskId: string): boolean {
+  return __testOnlyCanDispatchPendingCronRun(
+    schedulerShuttingDown,
+    cronDispatchInFlightByTaskId.has(taskId),
+    runningProcessByTaskId.has(taskId)
+  )
+}
+
+async function waitForInFlightDispatches(timeoutMs: number): Promise<{
+  drained: boolean
+  pendingCount: number
+}> {
+  const inFlightPromises = [...dispatchPromiseByTaskId.values()]
+  if (inFlightPromises.length === 0) {
+    return { drained: true, pendingCount: 0 }
+  }
+
+  let timedOut = false
+  await Promise.race([
+    Promise.allSettled(inFlightPromises),
+    new Promise<void>((resolve) => {
+      setTimeout(() => {
+        timedOut = true
+        resolve()
+      }, timeoutMs)
+    }),
+  ])
+
+  return {
+    drained: !timedOut && dispatchPromiseByTaskId.size === 0,
+    pendingCount: dispatchPromiseByTaskId.size,
+  }
 }
 
 function createRuntime(): SchedulerTaskRuntime {
@@ -954,8 +1016,7 @@ function enqueuePendingCronRun(task: SchedulerTask, minuteTimestampMs: number, n
 }
 
 function dispatchPendingCronRun(taskId: string): void {
-  if (cronDispatchInFlightByTaskId.has(taskId)) return
-  if (runningProcessByTaskId.has(taskId)) return
+  if (!canDispatchPendingCronRun(taskId)) return
 
   const pendingRuns = pendingCronRunsByTaskId.get(taskId)
   if (!pendingRuns || pendingRuns.length === 0) {
@@ -966,6 +1027,9 @@ function dispatchPendingCronRun(taskId: string): void {
   const task = tasksCache.find((entry) => entry.id === taskId)
   if (!task || !task.enabled) {
     pendingCronRunsByTaskId.delete(taskId)
+    return
+  }
+  if (schedulerShuttingDown) {
     return
   }
 
@@ -987,28 +1051,36 @@ function dispatchPendingCronRun(taskId: string): void {
   }
 
   cronDispatchInFlightByTaskId.add(taskId)
-  void runTask(task, 'cron', runContext).then((started) => {
-    if (!started) {
+  const dispatchPromise = runTask(task, 'cron', runContext).then((started) => {
+    if (__testOnlyShouldRequeuePendingCronRun(started, schedulerShuttingDown)) {
       const queue = pendingCronRunsByTaskId.get(taskId) ?? []
       queue.unshift(nextRun)
       pendingCronRunsByTaskId.set(taskId, queue)
     }
   }).catch((err) => {
-    const queue = pendingCronRunsByTaskId.get(taskId) ?? []
-    queue.unshift(nextRun)
-    pendingCronRunsByTaskId.set(taskId, queue)
+    if (!schedulerShuttingDown) {
+      const queue = pendingCronRunsByTaskId.get(taskId) ?? []
+      queue.unshift(nextRun)
+      pendingCronRunsByTaskId.set(taskId, queue)
+    }
     logMainError('scheduler.tick.run_task_failed', err, {
       taskId: task.id,
       taskName: task.name,
       minuteKey: nextRun.minuteKey,
+      schedulerShuttingDown,
     })
   }).finally(() => {
     cronDispatchInFlightByTaskId.delete(taskId)
-    dispatchPendingCronRun(taskId)
+    dispatchPromiseByTaskId.delete(taskId)
+    if (!schedulerShuttingDown) {
+      dispatchPendingCronRun(taskId)
+    }
   })
+  dispatchPromiseByTaskId.set(taskId, dispatchPromise)
 }
 
 async function schedulerTick(): Promise<void> {
+  if (schedulerShuttingDown) return
   if (schedulerTickInFlight) {
     if (!schedulerTickRequested) {
       logMainEvent('scheduler.tick.coalesced', { reason: 'in_flight' })
@@ -1099,6 +1171,7 @@ function startSchedulerLoop(): void {
 }
 
 export function setupSchedulerHandlers(): void {
+  schedulerShuttingDown = false
   loadTasksCache()
   startSchedulerLoop()
 
@@ -1130,6 +1203,7 @@ export function setupSchedulerHandlers(): void {
 }
 
 export async function cleanupScheduler(): Promise<void> {
+  schedulerShuttingDown = true
   if (schedulerTimer) {
     clearInterval(schedulerTimer)
     schedulerTimer = null
@@ -1137,8 +1211,29 @@ export async function cleanupScheduler(): Promise<void> {
   schedulerTickRequested = false
   schedulerTickInFlight = false
   lastSuccessfulSchedulerTickAt = null
+  const dispatchDrainTimeoutMs = resolveSchedulerDispatchDrainTimeoutMs()
+  const inFlightDispatchCount = dispatchPromiseByTaskId.size
+  if (inFlightDispatchCount > 0) {
+    logMainEvent('scheduler.cleanup.await_dispatches.start', {
+      inFlightDispatchCount,
+      timeoutMs: dispatchDrainTimeoutMs,
+    })
+    const dispatchDrain = await waitForInFlightDispatches(dispatchDrainTimeoutMs)
+    if (!dispatchDrain.drained) {
+      logMainEvent('scheduler.cleanup.await_dispatches.timeout', {
+        timeoutMs: dispatchDrainTimeoutMs,
+        pendingDispatchCount: dispatchDrain.pendingCount,
+      }, 'warn')
+    } else {
+      logMainEvent('scheduler.cleanup.await_dispatches.completed', {
+        awaitedDispatchCount: inFlightDispatchCount,
+      })
+    }
+  }
+
   pendingCronRunsByTaskId.clear()
   cronDispatchInFlightByTaskId.clear()
+  dispatchPromiseByTaskId.clear()
 
   const runningEntries = Array.from(runningProcessByTaskId.entries())
   if (runningEntries.length === 0) return
