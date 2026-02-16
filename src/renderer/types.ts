@@ -372,6 +372,7 @@ export interface AppSettings {
   yoloMode: boolean
   telemetry: {
     enabled: boolean
+    installBeaconEnabled: boolean
   }
   claudeProfiles: ClaudeProfilesConfig
 }
@@ -503,6 +504,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   yoloMode: false,
   telemetry: {
     enabled: false,
+    installBeaconEnabled: true,
   },
   claudeProfiles: {
     defaultProfileId: 'default',

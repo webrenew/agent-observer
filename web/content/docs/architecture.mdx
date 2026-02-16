@@ -81,6 +81,20 @@ State file:
 
 - `~/.agent-observer/todo-runner.json`
 
+### Install Telemetry Beacon
+
+- Generates a stable local `installationId` on first launch.
+- Sends one anonymous first-launch beacon using a SHA-256 hash of that ID.
+- Retries with bounded exponential backoff and stops after max attempts.
+
+State file:
+
+- `~/.agent-observer/install-beacon.json`
+
+Environment override:
+
+- `AGENT_OBSERVER_INSTALL_BEACON_URL`
+
 ## Data/Control Flow
 
 1. User configures automation in Settings.

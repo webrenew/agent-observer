@@ -723,8 +723,20 @@ export function SettingsPanel() {
                     }
                   />
                 </Row>
+                <Row label="Anonymous install beacon">
+                  <Toggle
+                    checked={draft.telemetry.installBeaconEnabled}
+                    onChange={(v) =>
+                      setDraft((d) => ({
+                        ...d,
+                        telemetry: { ...d.telemetry, installBeaconEnabled: v },
+                      }))
+                    }
+                  />
+                </Row>
                 <div style={{ fontSize: 11, color: '#595653', lineHeight: 1.5 }}>
-                  Stores local crash and startup diagnostics in <code>~/.agent-observer/telemetry.ndjson</code>.
+                  Stores local crash/startup diagnostics in <code>~/.agent-observer/telemetry.ndjson</code>.
+                  Install beacon sends one anonymous, hashed installation event on first launch.
                 </div>
               </Section>
               <Section title="CLAUDE PROFILES">

@@ -49,6 +49,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   yoloMode: false,
   telemetry: {
     enabled: false,
+    installBeaconEnabled: true,
   },
   claudeProfiles: {
     defaultProfileId: 'default',

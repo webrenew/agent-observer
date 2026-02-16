@@ -11,6 +11,7 @@ import { setupSchedulerHandlers, cleanupScheduler } from './scheduler'
 import { setupTodoRunnerHandlers, cleanupTodoRunner } from './todo-runner'
 import { setupWorkspaceContextHandlers } from './workspace-context'
 import { setupUpdateHandlers } from './app-updates'
+import { sendInstallBeaconOnLaunch } from './install-beacon'
 import {
   addStartupBreadcrumb,
   flushStartupBreadcrumbs,
@@ -521,6 +522,9 @@ if (!gotTheLock) {
   app.whenReady().then(() => {
     addStartupBreadcrumb('app.ready')
     recordTelemetryEvent('app.ready')
+    void sendInstallBeaconOnLaunch().catch((err) => {
+      recordException('install_beacon.launch', err)
+    })
 
     app.on('render-process-gone', (_event, webContents, details) => {
       recordTelemetryEvent('app.render_process_gone', {
