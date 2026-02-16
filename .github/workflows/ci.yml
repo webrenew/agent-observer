@@ -79,12 +79,46 @@ jobs:
       - name: Frontend build
         run: pnpm -C web run build
 
+  smoke-scope:
+    name: Smoke Scope
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.decide.outputs.should_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Decide smoke scope
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        run: |
+          if [ "$EVENT_NAME" = "push" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          echo "Changed files:"
+          echo "$changed_files"
+
+          if echo "$changed_files" | grep -Eq '^(src/|tests/|playwright\.smoke\.config\.ts|electron\.vite\.config\.ts|package\.json|pnpm-lock\.yaml|\.github/workflows/ci\.yml)'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   smoke-desktop:
     name: Desktop Smoke (Electron)
-    if: github.event_name == 'push'
+    if: needs.smoke-scope.outputs.should_run == 'true'
     needs:
       - desktop-checks
       - frontend-checks
+      - smoke-scope
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
