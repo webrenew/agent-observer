@@ -94,6 +94,7 @@ const electronAPI: ElectronAPI = {
     readDir: invokeFor<ElectronAPI['fs']['readDir']>(IPC_CHANNELS.fs.readDir),
     readFile: invokeFor<ElectronAPI['fs']['readFile']>(IPC_CHANNELS.fs.readFile),
     readImageDataUrl: invokeFor<ElectronAPI['fs']['readImageDataUrl']>(IPC_CHANNELS.fs.readImageDataUrl),
+    readDataUrl: invokeFor<ElectronAPI['fs']['readDataUrl']>(IPC_CHANNELS.fs.readDataUrl),
     search: invokeFor<ElectronAPI['fs']['search']>(IPC_CHANNELS.fs.search),
     homeDir: invokeFor<ElectronAPI['fs']['homeDir']>(IPC_CHANNELS.fs.homeDir),
     stat: invokeFor<ElectronAPI['fs']['stat']>(IPC_CHANNELS.fs.stat),

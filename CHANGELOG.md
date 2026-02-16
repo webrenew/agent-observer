@@ -11,6 +11,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Open-source project governance docs and templates (`README`, `CONTRIBUTING`,
   `CODE_OF_CONDUCT`, `SECURITY`, issue templates, PR template, `CODEOWNERS`).
+- Explorer-driven file previews now support text/markdown/image/audio/video/PDF
+  modes with a binary metadata fallback and staged diff-preview saves for
+  text-like edits.
 
 ### Changed
 

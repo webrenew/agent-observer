@@ -36,6 +36,7 @@ export const IPC_CHANNELS = {
     readDir: 'fs:readDir',
     readFile: 'fs:readFile',
     readImageDataUrl: 'fs:readImageDataUrl',
+    readDataUrl: 'fs:readDataUrl',
     search: 'fs:search',
     homeDir: 'fs:homeDir',
     stat: 'fs:stat',
@@ -116,6 +117,12 @@ export interface FsReadFileResult {
 }
 
 export interface FsReadImageDataUrlResult {
+  dataUrl: string
+  size: number
+  mimeType: string
+}
+
+export interface FsReadDataUrlResult {
   dataUrl: string
   size: number
   mimeType: string
@@ -221,6 +228,7 @@ export interface ElectronAPI {
     readDir: (dirPath: string, showHidden?: boolean) => Promise<FsEntry[]>
     readFile: (filePath: string) => Promise<FsReadFileResult>
     readImageDataUrl: (filePath: string) => Promise<FsReadImageDataUrlResult>
+    readDataUrl: (filePath: string) => Promise<FsReadDataUrlResult>
     search: (rootDir: string, query: string, maxResults?: number) => Promise<FsSearchResult[]>
     homeDir: () => Promise<string>
     stat: (filePath: string) => Promise<FsStatResult>

@@ -19,8 +19,9 @@ interface FileEntry {
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB limit for preview
 const MAX_IMAGE_PREVIEW_SIZE = 25 * 1024 * 1024 // 25MB limit for in-app image preview
+const MAX_DATA_URL_PREVIEW_SIZE = 25 * 1024 * 1024 // 25MB limit for in-app media preview
 
-const IMAGE_MIME_BY_EXT: Record<string, string> = {
+const MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
@@ -30,6 +31,18 @@ const IMAGE_MIME_BY_EXT: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.svg': 'image/svg+xml',
   '.avif': 'image/avif',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.m4v': 'video/x-m4v',
+  '.avi': 'video/x-msvideo',
+  '.pdf': 'application/pdf',
 }
 
 async function readDirectory(dirPath: string, showHidden: boolean): Promise<FileEntry[]> {
@@ -86,17 +99,20 @@ async function readFileContent(filePath: string): Promise<{ content: string; tru
 
 function detectImageMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
-  return IMAGE_MIME_BY_EXT[ext] ?? 'application/octet-stream'
+  return MIME_BY_EXT[ext] ?? 'application/octet-stream'
 }
 
-async function readImageAsDataUrl(filePath: string): Promise<{ dataUrl: string; size: number; mimeType: string }> {
+async function readFileAsDataUrl(
+  filePath: string,
+  maxSize = MAX_DATA_URL_PREVIEW_SIZE
+): Promise<{ dataUrl: string; size: number; mimeType: string }> {
   const resolved = path.resolve(filePath)
   const stat = await fs.promises.stat(resolved)
   if (!stat.isFile()) {
     throw new Error('Path is not a file')
   }
-  if (stat.size > MAX_IMAGE_PREVIEW_SIZE) {
-    throw new Error(`Image preview exceeds ${(MAX_IMAGE_PREVIEW_SIZE / (1024 * 1024)).toFixed(0)}MB limit`)
+  if (stat.size > maxSize) {
+    throw new Error(`Preview exceeds ${(maxSize / (1024 * 1024)).toFixed(0)}MB limit`)
   }
   const buffer = await fs.promises.readFile(resolved)
   const mimeType = detectImageMimeType(resolved)
@@ -105,6 +121,14 @@ async function readImageAsDataUrl(filePath: string): Promise<{ dataUrl: string; 
     size: stat.size,
     mimeType,
   }
+}
+
+async function readImageAsDataUrl(filePath: string): Promise<{ dataUrl: string; size: number; mimeType: string }> {
+  const result = await readFileAsDataUrl(filePath, MAX_IMAGE_PREVIEW_SIZE)
+  if (!result.mimeType.startsWith('image/')) {
+    throw new Error('File is not an image')
+  }
+  return result
 }
 
 let handlersRegistered = false
@@ -174,6 +198,10 @@ export function setupFilesystemHandlers(mainWindow?: BrowserWindow): void {
 
   handleFilesystemIpc('fs:readImageDataUrl', 'readImageDataUrl', async (_event, filePath: string) => {
     return readImageAsDataUrl(filePath)
+  })
+
+  handleFilesystemIpc('fs:readDataUrl', 'readDataUrl', async (_event, filePath: string) => {
+    return readFileAsDataUrl(filePath)
   })
 
   handleFilesystemIpc('fs:search', 'search', async (_event, rootDir: string, query: string, maxResults?: number) => {
