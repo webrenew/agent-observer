@@ -8,6 +8,7 @@ import type { AgentStatus } from "@/types";
 import { resolveWorldTierConfig } from "@/lib/world-tier-config";
 import { resolveOfficeDeskLayout } from "@/lib/office-layout";
 import { resolveOfficeDetailVisibility } from "@/lib/office-detail";
+import { resolveExteriorVisibility } from "@/lib/exterior-detail";
 
 const WALL_COLOR = "#E8E0D8";
 const FLOOR_COLOR = "#D4A574";
@@ -27,6 +28,15 @@ const SCREEN_COLORS: Record<AgentStatus, { color: string; emissive: string; inte
 const PIZZA_CENTER: [number, number, number] = [0, 0, -6.35];
 const PIZZA_RADIUS = 1.75;
 const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps;
+type ExteriorPropType = "tree" | "bench" | "lamp" | "flower";
+
+interface ExteriorPropLayout {
+  type: ExteriorPropType;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number;
+}
+
 const OFFICE_PLANT_LAYOUT: Array<{ position: [number, number, number]; scale: number }> = [
   { position: [-10, 0, -13], scale: 1.15 },
   { position: [10, 0, -13], scale: 1.15 },
@@ -44,6 +54,24 @@ const OFFICE_PLANT_LAYOUT: Array<{ position: [number, number, number]; scale: nu
   { position: [0, 0, -12.5], scale: 0.88 },
   { position: [-6.9, 0, 2.4], scale: 0.84 },
   { position: [6.9, 0, 2.4], scale: 0.84 },
+];
+const EXTERIOR_PROP_LAYOUT: ExteriorPropLayout[] = [
+  { type: "tree", position: [-15.5, 0, -15.8], scale: 1.5 },
+  { type: "tree", position: [15.5, 0, -15.8], scale: 1.5 },
+  { type: "tree", position: [-15.5, 0, 5.8], scale: 1.35 },
+  { type: "tree", position: [15.5, 0, 5.8], scale: 1.35 },
+  { type: "bench", position: [-13.4, 0, -6.2], rotation: [0, Math.PI / 2, 0], scale: 1.15 },
+  { type: "bench", position: [13.4, 0, -6.2], rotation: [0, -Math.PI / 2, 0], scale: 1.15 },
+  { type: "lamp", position: [-13.8, 0, -12], scale: 1 },
+  { type: "lamp", position: [13.8, 0, -12], scale: 1 },
+  { type: "flower", position: [-11.8, 0, 4.8], scale: 1.15 },
+  { type: "flower", position: [11.8, 0, 4.8], scale: 1.15 },
+  { type: "tree", position: [-1.6, 0, 7.2], scale: 1.2 },
+  { type: "tree", position: [1.6, 0, 7.2], scale: 1.2 },
+  { type: "bench", position: [0, 0, 7.8], rotation: [0, Math.PI, 0], scale: 1 },
+  { type: "flower", position: [-4.8, 0, 6.6], scale: 0.95 },
+  { type: "flower", position: [4.8, 0, 6.6], scale: 0.95 },
+  { type: "lamp", position: [0, 0, 8.9], scale: 0.92 },
 ];
 
 function computePizzaSeat(index: number, total: number): [number, number, number] {
@@ -354,6 +382,127 @@ function Whiteboard({
   );
 }
 
+function SkyDome({ richEnvironment }: { richEnvironment: boolean }) {
+  return (
+    <mesh>
+      <sphereGeometry args={[85, 48, 24]} />
+      <meshStandardMaterial
+        color={richEnvironment ? "#87CEEB" : "#9ED3FF"}
+        emissive={richEnvironment ? "#BFDBFE" : "#DBEAFE"}
+        emissiveIntensity={richEnvironment ? 0.2 : 0.12}
+        side={1}
+      />
+    </mesh>
+  );
+}
+
+function ExteriorTree({
+  position,
+  scale = 1,
+}: {
+  position: [number, number, number];
+  scale?: number;
+}) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.9, 0]} castShadow>
+        <cylinderGeometry args={[0.22, 0.27, 1.8, 10]} />
+        <meshStandardMaterial color="#6B4F3A" />
+      </mesh>
+      <mesh position={[0, 2.3, 0]} castShadow>
+        <sphereGeometry args={[0.95, 16, 12]} />
+        <meshStandardMaterial color="#2F855A" />
+      </mesh>
+      <mesh position={[-0.45, 2.05, 0.25]} castShadow>
+        <sphereGeometry args={[0.55, 14, 10]} />
+        <meshStandardMaterial color="#3FA16E" />
+      </mesh>
+      <mesh position={[0.5, 1.95, -0.25]} castShadow>
+        <sphereGeometry args={[0.5, 14, 10]} />
+        <meshStandardMaterial color="#3FA16E" />
+      </mesh>
+    </group>
+  );
+}
+
+function ExteriorBench({
+  position,
+  rotation = [0, 0, 0],
+  scale = 1,
+}: {
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number;
+}) {
+  return (
+    <group position={position} rotation={rotation} scale={scale}>
+      <mesh position={[0, 0.52, 0]} castShadow>
+        <boxGeometry args={[1.8, 0.08, 0.38]} />
+        <meshStandardMaterial color="#7A5A3A" />
+      </mesh>
+      <mesh position={[0, 0.75, -0.14]} castShadow>
+        <boxGeometry args={[1.8, 0.4, 0.08]} />
+        <meshStandardMaterial color="#7A5A3A" />
+      </mesh>
+      {[-0.75, 0.75].map((x) => (
+        <mesh key={x} position={[x, 0.3, 0]} castShadow>
+          <boxGeometry args={[0.1, 0.5, 0.1]} />
+          <meshStandardMaterial color="#4B5563" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function ExteriorLamp({
+  position,
+  scale = 1,
+}: {
+  position: [number, number, number];
+  scale?: number;
+}) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 1.5, 0]} castShadow>
+        <cylinderGeometry args={[0.07, 0.09, 3, 12]} />
+        <meshStandardMaterial color="#4B5563" />
+      </mesh>
+      <mesh position={[0, 3.15, 0]}>
+        <sphereGeometry args={[0.2, 12, 10]} />
+        <meshStandardMaterial color="#FDE68A" emissive="#FCD34D" emissiveIntensity={0.45} />
+      </mesh>
+    </group>
+  );
+}
+
+function ExteriorFlowerBed({
+  position,
+  scale = 1,
+}: {
+  position: [number, number, number];
+  scale?: number;
+}) {
+  return (
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.12, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.68, 0.68, 0.24, 18]} />
+        <meshStandardMaterial color="#6B7280" />
+      </mesh>
+      {[
+        [-0.22, 0.34, 0.16, "#FB7185"],
+        [0.24, 0.3, -0.08, "#F97316"],
+        [0.12, 0.32, 0.22, "#FACC15"],
+        [-0.1, 0.28, -0.18, "#A78BFA"],
+      ].map(([x, y, z, color], index) => (
+        <mesh key={index} position={[x as number, y as number, z as number]}>
+          <sphereGeometry args={[0.12, 10, 8]} />
+          <meshStandardMaterial color={color as string} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function Office() {
   const agents = useDemoStore((s) => s.agents);
   const sceneUnlocks = useDemoStore((s) => s.sceneUnlocks);
@@ -378,6 +527,15 @@ export function Office() {
       }),
     [experimentalDecorationsEnabled, sceneCaps, sceneUnlocks]
   );
+  const exteriorVisibility = useMemo(
+    () =>
+      resolveExteriorVisibility({
+        unlocks: sceneUnlocks,
+        caps: sceneCaps,
+        totalExteriorPropSlots: EXTERIOR_PROP_LAYOUT.length,
+      }),
+    [sceneCaps, sceneUnlocks]
+  );
   const detailProps = useMemo(
     () => [
       <MonitorWall key="detail-monitor-wall" position={[10.88, 0, -5]} rotation={[0, -Math.PI / 2, 0]} />,
@@ -388,6 +546,14 @@ export function Office() {
     ],
     []
   );
+  const visibleExteriorProps = useMemo(
+    () =>
+      EXTERIOR_PROP_LAYOUT.slice(0, exteriorVisibility.visibleExteriorPropCount),
+    [exteriorVisibility.visibleExteriorPropCount]
+  );
+  const ambientLightIntensity = exteriorVisibility.showBlueSky ? 0.52 : 0.4;
+  const directionalLightIntensity = exteriorVisibility.showBlueSky ? 1.05 : 1.2;
+  const directionalLightColor = exteriorVisibility.showBlueSky ? "#EFF6FF" : "#FFFFFF";
   const visibleAgents = useMemo(
     () => agents.slice(0, deskLayout.length),
     [agents, deskLayout.length]
@@ -413,11 +579,16 @@ export function Office() {
 
   return (
     <group>
+      {exteriorVisibility.showBlueSky && (
+        <SkyDome richEnvironment={exteriorVisibility.richEnvironment} />
+      )}
+
       {/* Lighting */}
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={ambientLightIntensity} />
       <directionalLight
         position={[5, 8, 5]}
-        intensity={1.2}
+        intensity={directionalLightIntensity}
+        color={directionalLightColor}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -430,6 +601,23 @@ export function Office() {
       />
       <pointLight position={[-4, 3, -4]} intensity={0.3} color="#FFE4B5" />
       <pointLight position={[4, 3, -9]} intensity={0.3} color="#FFE4B5" />
+
+      {exteriorVisibility.showExteriorPark && (
+        <>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, -5]} receiveShadow>
+            <planeGeometry args={[42, 36]} />
+            <meshStandardMaterial color={exteriorVisibility.richEnvironment ? "#7FBD65" : "#6FAF55"} />
+          </mesh>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, -5]} receiveShadow>
+            <planeGeometry args={[28, 24]} />
+            <meshStandardMaterial
+              color={exteriorVisibility.richEnvironment ? "#D6C39A" : "#CBB58B"}
+              transparent
+              opacity={0.75}
+            />
+          </mesh>
+        </>
+      )}
 
       {/* Floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -5]} receiveShadow>
@@ -589,6 +777,44 @@ export function Office() {
       {OFFICE_PLANT_LAYOUT.slice(0, officeDetailVisibility.visiblePlantCount).map((plant, index) => (
         <Plant key={`office-plant-${index}`} position={plant.position} scale={plant.scale} />
       ))}
+
+      {visibleExteriorProps.map((prop, index) => {
+        if (prop.type === "tree") {
+          return (
+            <ExteriorTree
+              key={`exterior-tree-${index}`}
+              position={prop.position}
+              scale={prop.scale}
+            />
+          );
+        }
+        if (prop.type === "bench") {
+          return (
+            <ExteriorBench
+              key={`exterior-bench-${index}`}
+              position={prop.position}
+              rotation={prop.rotation}
+              scale={prop.scale}
+            />
+          );
+        }
+        if (prop.type === "lamp") {
+          return (
+            <ExteriorLamp
+              key={`exterior-lamp-${index}`}
+              position={prop.position}
+              scale={prop.scale}
+            />
+          );
+        }
+        return (
+          <ExteriorFlowerBed
+            key={`exterior-flower-${index}`}
+            position={prop.position}
+            scale={prop.scale}
+          />
+        );
+      })}
     </group>
   );
 }
