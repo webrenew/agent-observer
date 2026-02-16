@@ -55,14 +55,50 @@ Cache policy:
 ## Install Source Modes
 
 - Prototype mode (default): install count is derived from GitHub release `.dmg` download counts.
-- Production mode: install count is read from backend aggregate values when available.
+- Production mode: install count is read from backend beacon aggregate values when available.
 
 Environment toggles used by server code:
 
 - `AGENT_OBSERVER_WORLD_INSTALL_SOURCE`: `prototype` or `production`
 - `AGENT_OBSERVER_WORLD_INSTALL_COUNT`: numeric production aggregate count
+- `AGENT_OBSERVER_INSTALL_BEACON_STORE_FILE`: optional persistent JSON store path for install beacon dedupe/aggregate state
 
-If production is selected but no valid production count is available, the API falls back to the prototype source contract.
+If production is selected, world state first uses the install-beacon aggregate count; if unavailable, it falls back to `AGENT_OBSERVER_WORLD_INSTALL_COUNT`, then to prototype if still unavailable.
+
+## Install Beacon Ingest API
+
+Endpoint:
+
+- `POST /api/install-beacon`
+
+Request body contract:
+
+```json
+{
+  "installation_id_hash": "sha256_hex_64_chars",
+  "app_version": "1.2.0",
+  "first_seen_at": "2026-02-16T00:00:00.000Z"
+}
+```
+
+Response:
+
+- `202` accepted with dedupe result and `uniqueInstallCount`
+- `400` invalid payload
+- `429` rate limited (includes `Retry-After`)
+
+Abuse controls:
+
+- strict payload schema validation
+- per-source IP rate limit window
+- per-installation hash rate limit window
+- idempotent dedupe keyed by `installation_id_hash`
+
+Aggregation latency and consistency:
+
+- aggregate updates synchronously on accepted beacon ingest (single request latency)
+- aggregate reads are strongly consistent within one server process
+- cross-instance consistency depends on shared persistence path (`AGENT_OBSERVER_INSTALL_BEACON_STORE_FILE`)
 
 Tier thresholds, unlock flags, and per-tier entity caps are defined in one source-of-truth module:
 

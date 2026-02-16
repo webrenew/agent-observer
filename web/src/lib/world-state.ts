@@ -1,4 +1,5 @@
 import { getPrototypeInstallCountSnapshot } from "@/lib/install-count";
+import { resolveProductionInstallCountFromAggregate } from "@/lib/world-state-production";
 import {
   buildWorldStatePayload,
   resolveWorldInstallSignal,
@@ -21,10 +22,20 @@ function parseProductionInstallCount(raw: string | undefined): number | null {
 }
 
 export async function getWorldStatePayload(): Promise<WorldStatePayload> {
+  const preferredSource = resolvePreferredSource(process.env[WORLD_INSTALL_SOURCE_ENV]);
+  const configuredProductionInstallCount = parseProductionInstallCount(
+    process.env[WORLD_INSTALL_COUNT_ENV]
+  );
+  const productionInstallCount =
+    preferredSource === "production"
+      ? await resolveProductionInstallCountFromAggregate(
+          configuredProductionInstallCount
+        )
+      : configuredProductionInstallCount;
   const prototypeSnapshot = await getPrototypeInstallCountSnapshot();
   const signal = resolveWorldInstallSignal(prototypeSnapshot, {
-    preferredSource: resolvePreferredSource(process.env[WORLD_INSTALL_SOURCE_ENV]),
-    productionInstallCount: parseProductionInstallCount(process.env[WORLD_INSTALL_COUNT_ENV]),
+    preferredSource,
+    productionInstallCount,
     checkedAt: new Date().toISOString(),
   });
 
