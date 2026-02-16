@@ -71,7 +71,22 @@ Tier thresholds, unlock flags, and per-tier entity caps are defined in one sourc
 Tier 1 desk/agent density layout uses deterministic desk slots from:
 
 - `web/src/lib/office-layout.ts`
+- `web/src/lib/office-detail.ts` (Tier 2 interior detail visibility)
 - `web/src/lib/exterior-detail.ts` (Tier 3+ park + sky progression)
+
+Performance safeguards for world growth are centralized in:
+
+- `web/src/lib/world-performance.ts` (hard cap clamps + FPS/frame-time budgets)
+- `web/src/lib/scene-culling.ts` (distance culling for non-critical props)
+
+## Performance Budgets
+
+- `targetFps`: `60`
+- `minFps`: `45`
+- `maxFrameTimeMs`: `22`
+- `p95FrameTimeMs`: `18`
+
+All incoming scene cap values are clamped to configured hard caps before rendering, and non-critical plants/exterior props are distance-culled from the office focal point.
 
 Experimental interior decorations can be toggled at runtime from the demo HUD:
 

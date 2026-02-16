@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
+import type { InstancedMesh } from "three";
+import { Object3D } from "three";
 import { useDemoStore } from "@/stores/useDemoStore";
 import { AgentCharacter } from "./AgentCharacter";
 import { CelebrationEffect } from "./CelebrationEffect";
@@ -9,6 +11,8 @@ import { resolveWorldTierConfig } from "@/lib/world-tier-config";
 import { resolveOfficeDeskLayout } from "@/lib/office-layout";
 import { resolveOfficeDetailVisibility } from "@/lib/office-detail";
 import { resolveExteriorVisibility } from "@/lib/exterior-detail";
+import { resolveDistanceCulledItems } from "@/lib/scene-culling";
+import { NON_CRITICAL_CULL_DISTANCE } from "@/lib/world-performance";
 
 const WALL_COLOR = "#E8E0D8";
 const FLOOR_COLOR = "#D4A574";
@@ -27,8 +31,14 @@ const SCREEN_COLORS: Record<AgentStatus, { color: string; emissive: string; inte
 
 const PIZZA_CENTER: [number, number, number] = [0, 0, -6.35];
 const PIZZA_RADIUS = 1.75;
+const SCENE_FOCAL_POINT: [number, number, number] = [0, 0, -6];
 const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps;
 type ExteriorPropType = "tree" | "bench" | "lamp" | "flower";
+
+interface PlantLayout {
+  position: [number, number, number];
+  scale: number;
+}
 
 interface ExteriorPropLayout {
   type: ExteriorPropType;
@@ -37,7 +47,7 @@ interface ExteriorPropLayout {
   scale?: number;
 }
 
-const OFFICE_PLANT_LAYOUT: Array<{ position: [number, number, number]; scale: number }> = [
+const OFFICE_PLANT_LAYOUT: PlantLayout[] = [
   { position: [-10, 0, -13], scale: 1.15 },
   { position: [10, 0, -13], scale: 1.15 },
   { position: [-10, 0, 3], scale: 1.1 },
@@ -290,7 +300,46 @@ function ServerRack({
   );
 }
 
-function Plant({
+function InstancedPlantPots({
+  plants,
+}: {
+  plants: PlantLayout[];
+}) {
+  const potsRef = useRef<InstancedMesh>(null);
+  const matrixHelper = useMemo(() => new Object3D(), []);
+
+  useLayoutEffect(() => {
+    const mesh = potsRef.current;
+    if (!mesh) return;
+
+    for (let index = 0; index < plants.length; index += 1) {
+      const plant = plants[index];
+      matrixHelper.position.set(
+        plant.position[0],
+        plant.position[1] + 0.2 * plant.scale,
+        plant.position[2]
+      );
+      matrixHelper.rotation.set(0, 0, 0);
+      matrixHelper.scale.setScalar(plant.scale);
+      matrixHelper.updateMatrix();
+      mesh.setMatrixAt(index, matrixHelper.matrix);
+    }
+
+    mesh.count = plants.length;
+    mesh.instanceMatrix.needsUpdate = true;
+  }, [matrixHelper, plants]);
+
+  if (plants.length === 0) return null;
+
+  return (
+    <instancedMesh ref={potsRef} args={[undefined, undefined, plants.length]} castShadow>
+      <cylinderGeometry args={[0.2, 0.15, 0.4, 8]} />
+      <meshStandardMaterial color="#8B4513" />
+    </instancedMesh>
+  );
+}
+
+function PlantLeaves({
   position,
   scale = 1,
 }: {
@@ -299,11 +348,6 @@ function Plant({
 }) {
   return (
     <group position={position} scale={scale}>
-      {/* Pot */}
-      <mesh position={[0, 0.2, 0]} castShadow>
-        <cylinderGeometry args={[0.2, 0.15, 0.4, 8]} />
-        <meshStandardMaterial color="#8B4513" />
-      </mesh>
       {/* Leaves */}
       {[
         [0, 0.6, 0],
@@ -546,10 +590,33 @@ export function Office() {
     ],
     []
   );
+  const officePlantCullDistance = sceneUnlocks.worldRichness
+    ? NON_CRITICAL_CULL_DISTANCE.officePlantsRich
+    : officeDetailVisibility.showDetailDecorations
+      ? NON_CRITICAL_CULL_DISTANCE.officePlantsDetail
+      : NON_CRITICAL_CULL_DISTANCE.officePlantsBase;
+  const visiblePlants = useMemo(
+    () =>
+      resolveDistanceCulledItems({
+        items: OFFICE_PLANT_LAYOUT,
+        maxVisibleCount: officeDetailVisibility.visiblePlantCount,
+        focalPoint: SCENE_FOCAL_POINT,
+        maxDistance: officePlantCullDistance,
+      }),
+    [officeDetailVisibility.visiblePlantCount, officePlantCullDistance]
+  );
+  const exteriorCullDistance = exteriorVisibility.richEnvironment
+    ? NON_CRITICAL_CULL_DISTANCE.exteriorTier4
+    : NON_CRITICAL_CULL_DISTANCE.exteriorTier3;
   const visibleExteriorProps = useMemo(
     () =>
-      EXTERIOR_PROP_LAYOUT.slice(0, exteriorVisibility.visibleExteriorPropCount),
-    [exteriorVisibility.visibleExteriorPropCount]
+      resolveDistanceCulledItems({
+        items: EXTERIOR_PROP_LAYOUT,
+        maxVisibleCount: exteriorVisibility.visibleExteriorPropCount,
+        focalPoint: SCENE_FOCAL_POINT,
+        maxDistance: exteriorCullDistance,
+      }),
+    [exteriorCullDistance, exteriorVisibility.visibleExteriorPropCount]
   );
   const ambientLightIntensity = exteriorVisibility.showBlueSky ? 0.52 : 0.4;
   const directionalLightIntensity = exteriorVisibility.showBlueSky ? 1.05 : 1.2;
@@ -774,8 +841,9 @@ export function Office() {
       {detailProps.slice(0, officeDetailVisibility.visibleDetailPropCount)}
 
       {/* Plants throughout the office */}
-      {OFFICE_PLANT_LAYOUT.slice(0, officeDetailVisibility.visiblePlantCount).map((plant, index) => (
-        <Plant key={`office-plant-${index}`} position={plant.position} scale={plant.scale} />
+      <InstancedPlantPots plants={visiblePlants} />
+      {visiblePlants.map((plant, index) => (
+        <PlantLeaves key={`office-plant-${index}`} position={plant.position} scale={plant.scale} />
       ))}
 
       {visibleExteriorProps.map((prop, index) => {

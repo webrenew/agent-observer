@@ -4,6 +4,7 @@ import {
   type WorldTierEntityCaps,
   type WorldUnlockFlags,
 } from "@/lib/world-tier-config";
+import { clampWorldEntityCaps } from "@/lib/world-performance";
 import { useDemoStore } from "@/stores/useDemoStore";
 
 const BASE_WORLD_TIER = resolveWorldTierConfig(0);
@@ -32,15 +33,11 @@ function resolveVisibleAgentCap(snapshot: WorldStateTierSnapshot): number {
   const unlocksAgentsAndDesks = snapshot.unlocks?.agentsAndDesks === true;
   if (!unlocksAgentsAndDesks) return BASE_WORLD_CAPS.maxAgents;
 
-  const maxAgents = Number(snapshot.caps?.maxAgents);
-  const maxDesks = Number(snapshot.caps?.maxDesks);
-  if (!Number.isFinite(maxAgents) || !Number.isFinite(maxDesks)) {
-    return BASE_WORLD_CAPS.maxAgents;
-  }
+  const clampedCaps = resolveSceneCaps(snapshot);
 
   return Math.max(
     BASE_WORLD_CAPS.maxAgents,
-    Math.floor(Math.min(maxAgents, maxDesks))
+    Math.floor(Math.min(clampedCaps.maxAgents, clampedCaps.maxDesks))
   );
 }
 
@@ -71,13 +68,13 @@ function resolveSceneCaps(snapshot: WorldStateTierSnapshot): WorldTierEntityCaps
     return { ...BASE_WORLD_CAPS };
   }
 
-  return {
+  return clampWorldEntityCaps({
     maxAgents: Math.floor(Math.max(BASE_WORLD_CAPS.maxAgents, maxAgents)),
     maxDesks: Math.floor(Math.max(BASE_WORLD_CAPS.maxDesks, maxDesks)),
     maxOfficeProps: Math.floor(Math.max(BASE_WORLD_CAPS.maxOfficeProps, maxOfficeProps)),
     maxOfficePlants: Math.floor(Math.max(BASE_WORLD_CAPS.maxOfficePlants, maxOfficePlants)),
     maxExteriorProps: Math.floor(Math.max(BASE_WORLD_CAPS.maxExteriorProps, maxExteriorProps)),
-  };
+  });
 }
 
 export function useWorldStateSceneTier() {

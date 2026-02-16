@@ -1,4 +1,5 @@
 import type { WorldTierEntityCaps, WorldUnlockFlags } from "@/lib/world-tier-config";
+import { clampWorldEntityCaps } from "@/lib/world-performance";
 
 export interface ResolveExteriorVisibilityOptions {
   unlocks: WorldUnlockFlags;
@@ -16,6 +17,7 @@ export interface ExteriorVisibility {
 export function resolveExteriorVisibility(
   options: ResolveExteriorVisibilityOptions
 ): ExteriorVisibility {
+  const safeCaps = clampWorldEntityCaps(options.caps);
   const showExteriorPark = options.unlocks.exteriorPark;
   const showBlueSky = options.unlocks.blueSky;
   const richEnvironment = options.unlocks.worldRichness;
@@ -25,7 +27,7 @@ export function resolveExteriorVisibility(
         0,
         Math.min(
           options.totalExteriorPropSlots,
-          Math.floor(options.caps.maxExteriorProps)
+          Math.floor(safeCaps.maxExteriorProps)
         )
       )
     : 0;

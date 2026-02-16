@@ -1,5 +1,6 @@
 import type { WorldTierEntityCaps, WorldUnlockFlags } from "@/lib/world-tier-config";
 import { resolveWorldTierConfig } from "@/lib/world-tier-config";
+import { clampWorldEntityCaps } from "@/lib/world-performance";
 
 const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps;
 const DETAIL_PROP_SLOT_COUNT = 5;
@@ -20,10 +21,11 @@ export interface OfficeDetailVisibility {
 export function resolveOfficeDetailVisibility(
   options: ResolveOfficeDetailVisibilityOptions
 ): OfficeDetailVisibility {
+  const safeCaps = clampWorldEntityCaps(options.caps);
   const showDetailDecorations =
     options.unlocks.officeDetail && options.experimentalDecorationsEnabled;
   const visiblePlantCap = showDetailDecorations
-    ? options.caps.maxOfficePlants
+    ? safeCaps.maxOfficePlants
     : BASE_WORLD_CAPS.maxOfficePlants;
 
   const visiblePlantCount = Math.max(
@@ -34,7 +36,7 @@ export function resolveOfficeDetailVisibility(
   const detailPropBudget = showDetailDecorations
     ? Math.max(
         0,
-        Math.floor(options.caps.maxOfficeProps - BASE_WORLD_CAPS.maxOfficeProps)
+        Math.floor(safeCaps.maxOfficeProps - BASE_WORLD_CAPS.maxOfficeProps)
       )
     : 0;
 
