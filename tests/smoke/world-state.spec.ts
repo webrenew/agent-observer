@@ -40,6 +40,13 @@ test("world-state payload is deterministic for prototype install source", () => 
       blueSky: false,
       worldRichness: false,
     },
+    caps: {
+      maxAgents: 10,
+      maxDesks: 10,
+      maxOfficeProps: 12,
+      maxOfficePlants: 16,
+      maxExteriorProps: 0,
+    },
     installSource: {
       kind: "prototype",
       name: "github_release_assets",
@@ -47,7 +54,7 @@ test("world-state payload is deterministic for prototype install source", () => 
     },
     versions: {
       worldState: "2026-02-16.world-state.v1",
-      tierConfig: "prototype-v1",
+      tierConfig: "tiers-v1",
     },
   });
 });
@@ -82,6 +89,13 @@ test("world-state can use production install source when configured", () => {
   });
   expect(payload.unlocks.worldRichness).toBe(true);
   expect(payload.unlocks.exteriorPark).toBe(true);
+  expect(payload.caps).toEqual({
+    maxAgents: 14,
+    maxDesks: 14,
+    maxOfficeProps: 20,
+    maxOfficePlants: 24,
+    maxExteriorProps: 16,
+  });
 });
 
 test("production preference falls back to prototype source when value is missing", () => {

@@ -33,6 +33,13 @@ Cache policy:
     "blueSky": false,
     "worldRichness": false
   },
+  "caps": {
+    "maxAgents": 10,
+    "maxDesks": 10,
+    "maxOfficeProps": 12,
+    "maxOfficePlants": 16,
+    "maxExteriorProps": 0
+  },
   "installSource": {
     "kind": "prototype",
     "name": "github_release_assets",
@@ -40,7 +47,7 @@ Cache policy:
   },
   "versions": {
     "worldState": "2026-02-16.world-state.v1",
-    "tierConfig": "prototype-v1"
+    "tierConfig": "tiers-v1"
   }
 }
 ```
@@ -56,3 +63,7 @@ Environment toggles used by server code:
 - `AGENT_OBSERVER_WORLD_INSTALL_COUNT`: numeric production aggregate count
 
 If production is selected but no valid production count is available, the API falls back to the prototype source contract.
+
+Tier thresholds, unlock flags, and per-tier entity caps are defined in one source-of-truth module:
+
+- `web/src/lib/world-tier-config.ts`

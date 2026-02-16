@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Agent } from '@/types'
 import { randomAppearance } from '@/types'
+import { resolveWorldTierConfig } from '@/lib/world-tier-config'
 
 interface Toast {
   id: string
@@ -20,6 +21,7 @@ interface DemoState {
 }
 
 let toastIdCounter = 0
+const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps
 
 const DEMO_AGENTS: Agent[] = [
   {
@@ -93,7 +95,7 @@ const DEMO_AGENTS: Agent[] = [
 ]
 
 export const useDemoStore = create<DemoState>((set) => ({
-  agents: DEMO_AGENTS,
+  agents: DEMO_AGENTS.slice(0, BASE_WORLD_CAPS.maxAgents),
   selectedAgentId: null,
   toasts: [],
 

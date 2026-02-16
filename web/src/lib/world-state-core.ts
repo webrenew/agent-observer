@@ -1,7 +1,13 @@
 import type { PrototypeInstallCountSnapshot } from "@/lib/install-count-core";
+import {
+  WORLD_TIER_CONFIG_VERSION,
+  normalizeInstallCount,
+  resolveWorldTierConfig,
+  type WorldTierEntityCaps,
+  type WorldUnlockFlags,
+} from "@/lib/world-tier-config";
 
 export const WORLD_STATE_SCHEMA_VERSION = "2026-02-16.world-state.v1";
-export const WORLD_TIER_CONFIG_VERSION = "prototype-v1";
 
 export type WorldInstallSourceKind = "prototype" | "production";
 export type WorldInstallSourceName =
@@ -22,25 +28,6 @@ export interface ResolveWorldInstallSignalOptions {
   checkedAt?: string;
 }
 
-export interface WorldUnlockFlags {
-  agentsAndDesks: boolean;
-  officeDetail: boolean;
-  exteriorPark: boolean;
-  blueSky: boolean;
-  worldRichness: boolean;
-}
-
-interface WorldTierDefinition {
-  level: number;
-  key: string;
-  minInstallCount: number;
-  unlocks: WorldUnlockFlags;
-}
-
-interface ResolvedWorldTier extends WorldTierDefinition {
-  nextInstallCount: number | null;
-}
-
 export interface WorldTierState {
   level: number;
   key: string;
@@ -54,6 +41,7 @@ export interface WorldStatePayload {
   installCount: number;
   tier: WorldTierState;
   unlocks: WorldUnlockFlags;
+  caps: WorldTierEntityCaps;
   installSource: {
     kind: WorldInstallSourceKind;
     name: WorldInstallSourceName;
@@ -65,98 +53,8 @@ export interface WorldStatePayload {
   };
 }
 
-const WORLD_TIERS: readonly WorldTierDefinition[] = [
-  {
-    level: 0,
-    key: "base",
-    minInstallCount: 0,
-    unlocks: {
-      agentsAndDesks: false,
-      officeDetail: false,
-      exteriorPark: false,
-      blueSky: false,
-      worldRichness: false,
-    },
-  },
-  {
-    level: 1,
-    key: "tier_1_density",
-    minInstallCount: 25,
-    unlocks: {
-      agentsAndDesks: true,
-      officeDetail: false,
-      exteriorPark: false,
-      blueSky: false,
-      worldRichness: false,
-    },
-  },
-  {
-    level: 2,
-    key: "tier_2_office_detail",
-    minInstallCount: 100,
-    unlocks: {
-      agentsAndDesks: true,
-      officeDetail: true,
-      exteriorPark: false,
-      blueSky: false,
-      worldRichness: false,
-    },
-  },
-  {
-    level: 3,
-    key: "tier_3_exterior",
-    minInstallCount: 250,
-    unlocks: {
-      agentsAndDesks: true,
-      officeDetail: true,
-      exteriorPark: true,
-      blueSky: true,
-      worldRichness: false,
-    },
-  },
-  {
-    level: 4,
-    key: "tier_4_world_richness",
-    minInstallCount: 500,
-    unlocks: {
-      agentsAndDesks: true,
-      officeDetail: true,
-      exteriorPark: true,
-      blueSky: true,
-      worldRichness: true,
-    },
-  },
-];
-
-function normalizeInstallCount(value: number): number {
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return Math.floor(value);
-}
-
-function resolveTier(installCount: number): ResolvedWorldTier {
-  const normalizedCount = normalizeInstallCount(installCount);
-  let tierIndex = 0;
-
-  for (let index = 1; index < WORLD_TIERS.length; index += 1) {
-    const candidate = WORLD_TIERS[index];
-    if (normalizedCount >= candidate.minInstallCount) {
-      tierIndex = index;
-      continue;
-    }
-    break;
-  }
-
-  const current = WORLD_TIERS[tierIndex];
-  const next = WORLD_TIERS[tierIndex + 1];
-  return {
-    ...current,
-    unlocks: { ...current.unlocks },
-    nextInstallCount: next?.minInstallCount ?? null,
-  };
-}
-
 export function resolveTierForInstallCount(installCount: number): WorldTierState {
-  const tier = resolveTier(installCount);
+  const tier = resolveWorldTierConfig(installCount);
   return {
     level: tier.level,
     key: tier.key,
@@ -198,7 +96,7 @@ export function resolveWorldInstallSignal(
 
 export function buildWorldStatePayload(signal: WorldInstallSignal): WorldStatePayload {
   const installCount = normalizeInstallCount(signal.count);
-  const tier = resolveTier(installCount);
+  const tier = resolveWorldTierConfig(installCount);
 
   return {
     schemaVersion: WORLD_STATE_SCHEMA_VERSION,
@@ -211,6 +109,7 @@ export function buildWorldStatePayload(signal: WorldInstallSignal): WorldStatePa
       nextInstallCount: tier.nextInstallCount,
     },
     unlocks: { ...tier.unlocks },
+    caps: { ...tier.caps },
     installSource: {
       kind: signal.sourceKind,
       name: signal.sourceName,

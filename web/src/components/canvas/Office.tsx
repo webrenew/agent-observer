@@ -5,6 +5,7 @@ import { useDemoStore } from "@/stores/useDemoStore";
 import { AgentCharacter } from "./AgentCharacter";
 import { CelebrationEffect } from "./CelebrationEffect";
 import type { AgentStatus } from "@/types";
+import { resolveWorldTierConfig } from "@/lib/world-tier-config";
 
 const WALL_COLOR = "#E8E0D8";
 const FLOOR_COLOR = "#D4A574";
@@ -21,7 +22,7 @@ const SCREEN_COLORS: Record<AgentStatus, { color: string; emissive: string; inte
   done: { color: "#22d3ee", emissive: "#22d3ee", intensity: 0.3 },
 };
 
-/** Desk positions/rotations for up to 4 agents in a 2x2 layout */
+/** Baseline desk positions for the current office layout. */
 const DESK_LAYOUT: Array<{
   position: [number, number, number];
   rotation: [number, number, number];
@@ -34,6 +35,19 @@ const DESK_LAYOUT: Array<{
 ];
 const PIZZA_CENTER: [number, number, number] = [0, 0, -6.35];
 const PIZZA_RADIUS = 1.75;
+const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps;
+const OFFICE_PLANT_LAYOUT: Array<{ position: [number, number, number]; scale: number }> = [
+  { position: [-10, 0, -13], scale: 1.15 },
+  { position: [10, 0, -13], scale: 1.15 },
+  { position: [-10, 0, 3], scale: 1.1 },
+  { position: [10, 0, 3], scale: 1.1 },
+  { position: [-3.4, 0, -13.1], scale: 0.9 },
+  { position: [3.4, 0, -13.1], scale: 0.9 },
+  { position: [-10.05, 0, -5.2], scale: 0.85 },
+  { position: [10.05, 0, -5.2], scale: 0.85 },
+  { position: [0, 0, 2.8], scale: 0.95 },
+  { position: [6.8, 0, -11.3], scale: 0.75 },
+];
 
 function computePizzaSeat(index: number, total: number): [number, number, number] {
   const count = Math.max(3, total);
@@ -322,12 +336,16 @@ function WallWindow({
 
 export function Office() {
   const agents = useDemoStore((s) => s.agents);
+  const visibleAgents = useMemo(
+    () => agents.slice(0, Math.min(DESK_LAYOUT.length, BASE_WORLD_CAPS.maxAgents)),
+    [agents]
+  );
   const partyAgents = useMemo(
     () =>
-      agents
+      visibleAgents
         .filter((agent) => agent.activeCelebration === "pizza_party")
         .sort((a, b) => a.deskIndex - b.deskIndex),
-    [agents]
+    [visibleAgents]
   );
   const partySeatByAgentId = useMemo(() => {
     const map = new Map<string, [number, number, number]>();
@@ -426,7 +444,7 @@ export function Office() {
       ))}
 
       {/* Agent desks + characters + celebrations */}
-      {agents.map((agent) => {
+      {visibleAgents.map((agent) => {
         const layout = DESK_LAYOUT[agent.deskIndex];
         if (!layout) return null;
         const partyTarget = partySeatByAgentId.get(agent.id) ?? null;
@@ -525,18 +543,7 @@ export function Office() {
       <ServerRack position={[9.5, 1, -12]} />
 
       {/* Plants throughout the office */}
-      {[
-        { position: [-10, 0, -13] as [number, number, number], scale: 1.15 },
-        { position: [10, 0, -13] as [number, number, number], scale: 1.15 },
-        { position: [-10, 0, 3] as [number, number, number], scale: 1.1 },
-        { position: [10, 0, 3] as [number, number, number], scale: 1.1 },
-        { position: [-3.4, 0, -13.1] as [number, number, number], scale: 0.9 },
-        { position: [3.4, 0, -13.1] as [number, number, number], scale: 0.9 },
-        { position: [-10.05, 0, -5.2] as [number, number, number], scale: 0.85 },
-        { position: [10.05, 0, -5.2] as [number, number, number], scale: 0.85 },
-        { position: [0, 0, 2.8] as [number, number, number], scale: 0.95 },
-        { position: [6.8, 0, -11.3] as [number, number, number], scale: 0.75 },
-      ].map((plant, index) => (
+      {OFFICE_PLANT_LAYOUT.slice(0, BASE_WORLD_CAPS.maxOfficePlants).map((plant, index) => (
         <Plant key={`office-plant-${index}`} position={plant.position} scale={plant.scale} />
       ))}
 
