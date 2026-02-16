@@ -88,6 +88,7 @@ interface RunningTodoProcess {
 const TODO_RUNNER_DIR = path.join(os.homedir(), '.agent-observer')
 const TODO_RUNNER_FILE = path.join(TODO_RUNNER_DIR, 'todo-runner.json')
 const TODO_RUNNER_TICK_MS = 5_000
+const TODO_RUNNER_DEFAULT_MAX_CONCURRENT_JOBS = 2
 const TODO_RUNNER_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
 const TODO_RUNNER_FORCE_KILL_TIMEOUT_MS = 10_000
 const TODO_MAX_ATTEMPTS = 3
@@ -96,6 +97,7 @@ let handlersRegistered = false
 let todoRunnerTimer: NodeJS.Timeout | null = null
 let tickInFlight = false
 let jobsCache: TodoRunnerJobRecord[] = []
+let nextJobScanIndex = 0
 
 const runtimeByJobId = new Map<string, TodoRunnerRuntime>()
 const runningProcessByJobId = new Map<string, RunningTodoProcess>()
@@ -125,6 +127,20 @@ function resolveTodoRunnerMaxRuntimeMs(): number {
       fallbackMs: TODO_RUNNER_DEFAULT_MAX_RUNTIME_MS,
     }, 'warn')
     return TODO_RUNNER_DEFAULT_MAX_RUNTIME_MS
+  }
+  return parsed
+}
+
+function resolveTodoRunnerMaxConcurrentJobs(): number {
+  const raw = process.env.AGENT_SPACE_TODO_RUNNER_MAX_CONCURRENT_JOBS
+  if (!raw) return TODO_RUNNER_DEFAULT_MAX_CONCURRENT_JOBS
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    logMainEvent('todo_runner.invalid_concurrency_config', {
+      rawValue: raw,
+      fallback: TODO_RUNNER_DEFAULT_MAX_CONCURRENT_JOBS,
+    }, 'warn')
+    return TODO_RUNNER_DEFAULT_MAX_CONCURRENT_JOBS
   }
   return parsed
 }
@@ -869,15 +885,31 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
       resolve()
     })
   })
+
+  // Fill open worker slots promptly when a todo attempt exits.
+  kickTodoRunner()
 }
 
 async function todoRunnerTick(): Promise<void> {
   if (tickInFlight) return
   tickInFlight = true
   try {
-    if (runningProcessByJobId.size > 0) return
+    if (jobsCache.length === 0) {
+      nextJobScanIndex = 0
+      return
+    }
 
-    for (const job of jobsCache) {
+    const maxConcurrentJobs = resolveTodoRunnerMaxConcurrentJobs()
+    const availableSlots = Math.max(0, maxConcurrentJobs - runningProcessByJobId.size)
+    if (availableSlots <= 0) return
+
+    const jobCount = jobsCache.length
+    const startIndex = ((nextJobScanIndex % jobCount) + jobCount) % jobCount
+    let startedCount = 0
+
+    for (let offset = 0; offset < jobCount && startedCount < availableSlots; offset += 1) {
+      const index = (startIndex + offset) % jobCount
+      const job = jobsCache[index]
       if (!job.enabled) continue
       if (runningProcessByJobId.has(job.id)) continue
 
@@ -897,8 +929,19 @@ async function todoRunnerTick(): Promise<void> {
 
       const trigger: TodoRunnerRunTrigger = manualRunRequestedJobIds.has(job.id) ? 'manual' : 'auto'
       manualRunRequestedJobIds.delete(job.id)
-      await runTodo(job, nextIndex, trigger)
-      break
+      nextJobScanIndex = (index + 1) % jobCount
+      const runningBefore = runningProcessByJobId.size
+      void runTodo(job, nextIndex, trigger).catch((err) => {
+        logMainError('todo_runner.todo.run_failed', err, {
+          jobId: job.id,
+          jobName: job.name,
+          todoIndex: nextIndex,
+          trigger,
+        })
+      })
+      if (runningProcessByJobId.size > runningBefore) {
+        startedCount += 1
+      }
     }
   } finally {
     tickInFlight = false
@@ -963,4 +1006,5 @@ export function cleanupTodoRunner(): void {
   }
   runningProcessByJobId.clear()
   manualRunRequestedJobIds.clear()
+  nextJobScanIndex = 0
 }
