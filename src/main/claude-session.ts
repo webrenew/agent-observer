@@ -42,6 +42,7 @@ let sessionCounter = 0
 
 const CLAUDE_SESSION_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
 const CLAUDE_SESSION_FORCE_KILL_TIMEOUT_MS = 5_000
+const CLAUDE_SESSION_STDERR_MAX_CHARS = 4_000
 
 function resolveSessionMaxRuntimeMs(): number {
   const raw = process.env.AGENT_SPACE_CLAUDE_MAX_RUNTIME_MS
@@ -503,6 +504,9 @@ function startSession(options: ClaudeSessionOptions): string {
   let stderrBuffer = ''
   proc.stderr?.on('data', (chunk: Buffer) => {
     stderrBuffer += chunk.toString()
+    if (stderrBuffer.length > CLAUDE_SESSION_STDERR_MAX_CHARS) {
+      stderrBuffer = stderrBuffer.slice(-CLAUDE_SESSION_STDERR_MAX_CHARS)
+    }
   })
 
   proc.on('error', (err: Error) => {
