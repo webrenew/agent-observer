@@ -212,6 +212,18 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     setClaudeSessionId(sessionId)
   }, [])
 
+  useEffect(() => {
+    if (!claudeSessionId) return
+    void window.electronAPI.claude.observeSession(claudeSessionId).catch((error) => {
+      console.warn('[ChatPanel] Failed to observe Claude session:', error)
+    })
+    return () => {
+      void window.electronAPI.claude.unobserveSession(claudeSessionId).catch((error) => {
+        console.warn('[ChatPanel] Failed to unobserve Claude session:', error)
+      })
+    }
+  }, [claudeSessionId])
+
   const workingDir = chatSession ? chatSession.workingDirectory : fallbackWorkingDir
   const isDirectoryCustom = chatSession ? chatSession.directoryMode === 'custom' : false
   const hasStartedConversation = Boolean(chatSession?.agentId)

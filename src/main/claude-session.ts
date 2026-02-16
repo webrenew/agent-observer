@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, webContents } from 'electron'
 import { spawn, ChildProcess, execFile } from 'child_process'
 import { createInterface, Interface as ReadlineInterface } from 'readline'
 import path from 'path'
@@ -28,6 +28,7 @@ interface ActiveSession {
   process: ChildProcess
   readline: ReadlineInterface
   sessionId: string
+  ownerWebContentsId: number
   didEmitResult: boolean
   runtimeTimeout: NodeJS.Timeout | null
   forceKillTimeout: NodeJS.Timeout | null
@@ -45,6 +46,8 @@ interface ClaudeAvailabilityResult {
 // ── State ──────────────────────────────────────────────────────────────
 
 const activeSessions = new Map<string, ActiveSession>()
+const observerWebContentsIdsBySessionId = new Map<string, Set<number>>()
+const observedSessionIdsByWebContentsId = new Map<number, Set<string>>()
 let sessionCounter = 0
 
 const CLAUDE_SESSION_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
@@ -104,8 +107,8 @@ function scheduleSessionForceKill(session: ActiveSession, reason: string): void 
 
 /**
  * Packaged Electron apps don't inherit the user's shell PATH.
- * We resolve the claude binary by checking common install locations,
- * then falling back to asking the user's login shell.
+ * We resolve the claude binary synchronously by checking common install locations.
+ * Availability checks may perform async login-shell resolution when needed.
  */
 function resolveClaudeBinary(): string {
   const home = os.homedir()
@@ -297,12 +300,107 @@ function generateSessionId(): string {
   return `chat-${++sessionCounter}-${Date.now()}`
 }
 
-function emitEvent(event: ClaudeEvent): void {
-  // Broadcast to all windows (main + popped-out chat windows)
-  for (const w of BrowserWindow.getAllWindows()) {
-    if (!w.isDestroyed()) {
-      w.webContents.send('claude:event', event)
+export function __testOnlyResolveClaudeEventTargetIds(
+  ownerWebContentsId: number | null,
+  observerWebContentsIds: number[]
+): number[] {
+  const targetIds = new Set<number>()
+  if (ownerWebContentsId != null) {
+    targetIds.add(ownerWebContentsId)
+  }
+  for (const observerId of observerWebContentsIds) {
+    targetIds.add(observerId)
+  }
+  return [...targetIds]
+}
+
+function removeSessionObserver(sessionId: string, webContentsId: number): void {
+  const observersForSession = observerWebContentsIdsBySessionId.get(sessionId)
+  if (observersForSession) {
+    observersForSession.delete(webContentsId)
+    if (observersForSession.size === 0) {
+      observerWebContentsIdsBySessionId.delete(sessionId)
     }
+  }
+
+  const observedSessions = observedSessionIdsByWebContentsId.get(webContentsId)
+  if (observedSessions) {
+    observedSessions.delete(sessionId)
+    if (observedSessions.size === 0) {
+      observedSessionIdsByWebContentsId.delete(webContentsId)
+    }
+  }
+}
+
+function clearSessionObservers(sessionId: string): void {
+  const observersForSession = observerWebContentsIdsBySessionId.get(sessionId)
+  if (!observersForSession) return
+  for (const webContentsId of observersForSession) {
+    const observedSessions = observedSessionIdsByWebContentsId.get(webContentsId)
+    if (!observedSessions) continue
+    observedSessions.delete(sessionId)
+    if (observedSessions.size === 0) {
+      observedSessionIdsByWebContentsId.delete(webContentsId)
+    }
+  }
+  observerWebContentsIdsBySessionId.delete(sessionId)
+}
+
+function addSessionObserver(sessionId: string, webContentsId: number): void {
+  if (!Number.isFinite(webContentsId)) return
+  const target = webContents.fromId(webContentsId)
+  if (!target || target.isDestroyed()) return
+
+  let observedSessions = observedSessionIdsByWebContentsId.get(webContentsId)
+  if (!observedSessions) {
+    observedSessions = new Set<string>()
+    observedSessionIdsByWebContentsId.set(webContentsId, observedSessions)
+    target.once('destroyed', () => {
+      const trackedSessions = observedSessionIdsByWebContentsId.get(webContentsId)
+      if (!trackedSessions) return
+      for (const trackedSessionId of trackedSessions) {
+        const observers = observerWebContentsIdsBySessionId.get(trackedSessionId)
+        if (!observers) continue
+        observers.delete(webContentsId)
+        if (observers.size === 0) {
+          observerWebContentsIdsBySessionId.delete(trackedSessionId)
+        }
+      }
+      observedSessionIdsByWebContentsId.delete(webContentsId)
+    })
+  }
+  observedSessions.add(sessionId)
+
+  const observersForSession = observerWebContentsIdsBySessionId.get(sessionId) ?? new Set<number>()
+  observersForSession.add(webContentsId)
+  observerWebContentsIdsBySessionId.set(sessionId, observersForSession)
+}
+
+function resolveEventTargetWebContentsIds(sessionId: string): number[] {
+  const ownerWebContentsId = activeSessions.get(sessionId)?.ownerWebContentsId ?? null
+  const observerIds = [...(observerWebContentsIdsBySessionId.get(sessionId) ?? [])]
+  return __testOnlyResolveClaudeEventTargetIds(ownerWebContentsId, observerIds)
+}
+
+function emitEvent(event: ClaudeEvent): void {
+  const targetWebContentsIds = resolveEventTargetWebContentsIds(event.sessionId)
+  if (targetWebContentsIds.length === 0) {
+    // Compatibility fallback for legacy sessions with no tracked owner/observers.
+    for (const w of BrowserWindow.getAllWindows()) {
+      if (!w.isDestroyed()) {
+        w.webContents.send('claude:event', event)
+      }
+    }
+    return
+  }
+
+  for (const targetWebContentsId of targetWebContentsIds) {
+    const target = webContents.fromId(targetWebContentsId)
+    if (!target || target.isDestroyed()) {
+      removeSessionObserver(event.sessionId, targetWebContentsId)
+      continue
+    }
+    target.send('claude:event', event)
   }
 }
 
@@ -432,7 +530,7 @@ function parseStreamLine(
 
 // ── Session Management ─────────────────────────────────────────────────
 
-function startSession(options: ClaudeSessionOptions): string {
+function startSession(options: ClaudeSessionOptions, ownerWebContentsId: number): string {
   const sessionId = generateSessionId()
 
   // Resolve claude binary once
@@ -522,6 +620,7 @@ function startSession(options: ClaudeSessionOptions): string {
     process: proc,
     readline: rl,
     sessionId,
+    ownerWebContentsId,
     didEmitResult: false,
     runtimeTimeout: null,
     forceKillTimeout: null,
@@ -529,6 +628,7 @@ function startSession(options: ClaudeSessionOptions): string {
     stopRequested: false,
   }
   activeSessions.set(sessionId, session)
+  addSessionObserver(sessionId, ownerWebContentsId)
 
   const maxRuntimeMs = resolveSessionMaxRuntimeMs()
   session.runtimeTimeout = setTimeout(() => {
@@ -588,6 +688,7 @@ function startSession(options: ClaudeSessionOptions): string {
     })
     clearSessionTimers(session)
     activeSessions.delete(sessionId)
+    clearSessionObservers(sessionId)
   })
 
   proc.on('exit', (code: number | null, signal: string | null) => {
@@ -627,6 +728,7 @@ function startSession(options: ClaudeSessionOptions): string {
     }
 
     activeSessions.delete(sessionId)
+    clearSessionObservers(sessionId)
   })
 
   return sessionId
@@ -659,7 +761,7 @@ export function setupClaudeSessionHandlers(_mainWindow: BrowserWindow): void {
   if (handlersRegistered) return
   handlersRegistered = true
 
-  ipcMain.handle('claude:start', (_event, options: unknown) => {
+  ipcMain.handle('claude:start', (event, options: unknown) => {
     // Validate input shape
     if (!options || typeof options !== 'object') {
       throw new Error('claude:start requires an options object')
@@ -676,7 +778,7 @@ export function setupClaudeSessionHandlers(_mainWindow: BrowserWindow): void {
       workingDirectory: typeof opts.workingDirectory === 'string' ? opts.workingDirectory : undefined,
       dangerouslySkipPermissions: opts.dangerouslySkipPermissions === true,
     }
-    const sessionId = startSession(validated)
+    const sessionId = startSession(validated, event.sender.id)
     return { sessionId }
   })
 
@@ -685,6 +787,20 @@ export function setupClaudeSessionHandlers(_mainWindow: BrowserWindow): void {
       throw new Error('claude:stop requires a sessionId string')
     }
     stopSession(sessionId)
+  })
+
+  ipcMain.handle('claude:observeSession', (event, sessionId: unknown) => {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new Error('claude:observeSession requires a non-empty sessionId string')
+    }
+    addSessionObserver(sessionId, event.sender.id)
+  })
+
+  ipcMain.handle('claude:unobserveSession', (event, sessionId: unknown) => {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) {
+      throw new Error('claude:unobserveSession requires a non-empty sessionId string')
+    }
+    removeSessionObserver(sessionId, event.sender.id)
   })
 
   ipcMain.handle('claude:isAvailable', async () => {
@@ -696,4 +812,6 @@ export function cleanupClaudeSessions(): void {
   for (const [id] of activeSessions) {
     stopSession(id)
   }
+  observerWebContentsIdsBySessionId.clear()
+  observedSessionIdsByWebContentsId.clear()
 }
