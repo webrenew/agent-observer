@@ -47,6 +47,23 @@ interface SmokeTodoRunnerJob {
   lastRunAt: number | null
 }
 
+interface SmokeTodoRunnerStopOutcome {
+  jobId: string
+  wasRunning: boolean
+  stopped: boolean
+  forced: boolean
+  timedOut: boolean
+}
+
+interface SmokeTodoRunnerDeleteResult extends SmokeTodoRunnerStopOutcome {
+  deleted: boolean
+}
+
+interface SmokeTodoRunnerPauseResult {
+  job: SmokeTodoRunnerJob
+  stopOutcome: SmokeTodoRunnerStopOutcome
+}
+
 interface SmokeTodoRunnerJobInput {
   id?: string
   name: string
@@ -61,9 +78,9 @@ interface SmokeTodoRunnerJobInput {
 interface SmokeTodoRunnerAPI {
   list: () => Promise<SmokeTodoRunnerJob[]>
   upsert: (job: SmokeTodoRunnerJobInput) => Promise<SmokeTodoRunnerJob>
-  delete: (jobId: string) => Promise<void>
+  delete: (jobId: string) => Promise<SmokeTodoRunnerDeleteResult>
   start: (jobId: string) => Promise<SmokeTodoRunnerJob>
-  pause: (jobId: string) => Promise<SmokeTodoRunnerJob>
+  pause: (jobId: string) => Promise<SmokeTodoRunnerPauseResult>
 }
 
 interface SmokeElectronAPI {
@@ -278,12 +295,17 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
         errorMessage = String(err)
       }
 
-      await api.todoRunner.pause(created.id)
-      await api.todoRunner.delete(created.id)
-      return { sawRunning, errorMessage }
+      const pauseResult = await api.todoRunner.pause(created.id)
+      const deleteResult = await api.todoRunner.delete(created.id)
+      return { sawRunning, errorMessage, pauseResult, deleteResult }
     }, { workingDirectory: process.cwd() })
     expect(todoRunnerEditGuard.sawRunning).toBe(true)
     expect(todoRunnerEditGuard.errorMessage).toContain('Cannot edit todo items while job is running')
+    expect(todoRunnerEditGuard.pauseResult.stopOutcome.wasRunning).toBe(true)
+    expect(todoRunnerEditGuard.pauseResult.stopOutcome.stopped).toBe(true)
+    expect(todoRunnerEditGuard.pauseResult.stopOutcome.timedOut).toBe(false)
+    expect(todoRunnerEditGuard.deleteResult.stopped).toBe(true)
+    expect(todoRunnerEditGuard.deleteResult.deleted).toBe(true)
 
     // Regression check: large prompt payloads should still launch (payload over
     // stdin, env remains bounded) without E2BIG job-pausing failures.
@@ -312,11 +334,13 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
         await new Promise((resolve) => setTimeout(resolve, 50))
       }
 
-      await api.todoRunner.delete(created.id)
-      return finalState
+      const deleteResult = await api.todoRunner.delete(created.id)
+      return { finalState, deleteResult }
     }, { workingDirectory: process.cwd() })
-    expect(todoRunnerLargePayload).not.toBeNull()
-    expect(todoRunnerLargePayload?.lastError ?? '').not.toContain('E2BIG')
+    expect(todoRunnerLargePayload.finalState).not.toBeNull()
+    expect(todoRunnerLargePayload.finalState?.lastError ?? '').not.toContain('E2BIG')
+    expect(todoRunnerLargePayload.deleteResult.stopped).toBe(true)
+    expect(todoRunnerLargePayload.deleteResult.deleted).toBe(true)
 
     const chooseFolderButton = mainWindow.getByRole('button', { name: 'Choose folder' }).first()
     if (await chooseFolderButton.count()) {

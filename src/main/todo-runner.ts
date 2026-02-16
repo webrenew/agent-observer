@@ -9,7 +9,6 @@ import {
   clearManagedForceKillTimer,
   resolveManagedRuntimeMs,
   runManagedProcess,
-  scheduleManagedForceKill,
   terminateManagedProcess,
 } from './process-runner'
 import { assertAppNotShuttingDown } from './shutdown-state'
@@ -90,6 +89,23 @@ interface TodoRunnerJobView {
 interface RunningTodoProcess {
   process: ChildProcess
   todoIndex: number
+}
+
+interface TodoRunnerStopOutcome {
+  jobId: string
+  wasRunning: boolean
+  stopped: boolean
+  forced: boolean
+  timedOut: boolean
+}
+
+interface TodoRunnerDeleteResult extends TodoRunnerStopOutcome {
+  deleted: boolean
+}
+
+interface TodoRunnerPauseResult {
+  job: TodoRunnerJobView
+  stopOutcome: TodoRunnerStopOutcome
 }
 
 const TODO_RUNNER_DIR = path.join(os.homedir(), '.agent-observer')
@@ -423,32 +439,83 @@ function clearForceKillTimer(jobId: string): void {
   clearManagedForceKillTimer(forceKillTimerByJobId, jobId)
 }
 
-function scheduleForceKill(jobId: string, childProcess: ChildProcess, reason: string): void {
-  scheduleManagedForceKill({
-    timers: forceKillTimerByJobId,
-    key: jobId,
-    process: childProcess,
-    delayMs: TODO_RUNNER_FORCE_KILL_TIMEOUT_MS,
-    onForceKill: () => {
-      logMainEvent('todo_runner.process.force_kill', { jobId, reason })
-    },
-    onForceKillFailed: (err) => {
-      logMainError('todo_runner.process.force_kill_failed', err, { jobId, reason })
-    },
-  })
+function createTodoRunnerStopOutcome(
+  jobId: string,
+  overrides: Partial<TodoRunnerStopOutcome> = {}
+): TodoRunnerStopOutcome {
+  return {
+    jobId,
+    wasRunning: false,
+    stopped: true,
+    forced: false,
+    timedOut: false,
+    ...overrides,
+  }
 }
 
-function stopRunningProcess(jobId: string, reason: string): void {
+async function stopRunningProcessAndAwait(
+  jobId: string,
+  reason: 'pause' | 'delete'
+): Promise<TodoRunnerStopOutcome> {
   const running = runningProcessByJobId.get(jobId)
-  if (!running) return
+  if (!running) {
+    return createTodoRunnerStopOutcome(jobId)
+  }
 
+  logMainEvent('todo_runner.process.stop.start', { jobId, reason })
   stoppedByUserJobIds.add(jobId)
+  clearForceKillTimer(jobId)
+
   try {
-    running.process.kill('SIGTERM')
+    const stopResult = await terminateManagedProcess({
+      process: running.process,
+      sigtermTimeoutMs: TODO_RUNNER_FORCE_KILL_TIMEOUT_MS,
+      sigkillTimeoutMs: TODO_RUNNER_FORCE_KILL_TIMEOUT_MS,
+      onSigtermSent: () => {
+        logMainEvent('todo_runner.process.stop.sigterm_sent', { jobId, reason })
+      },
+      onSigtermFailed: (err) => {
+        logMainError('todo_runner.process.stop_failed', err, { jobId, reason })
+      },
+      onForceKill: () => {
+        logMainEvent('todo_runner.process.force_kill', { jobId, reason })
+      },
+      onForceKillFailed: (err) => {
+        logMainError('todo_runner.process.force_kill_failed', err, { jobId, reason })
+      },
+    })
+
+    if (!stopResult.timedOut) {
+      runningProcessByJobId.delete(jobId)
+      clearForceKillTimer(jobId)
+    }
+
+    const stopOutcome = createTodoRunnerStopOutcome(jobId, {
+      wasRunning: true,
+      stopped: !stopResult.timedOut,
+      forced: stopResult.escalatedToSigkill,
+      timedOut: stopResult.timedOut,
+    })
+    logMainEvent('todo_runner.process.stop.completed', {
+      jobId,
+      reason,
+      stopped: stopOutcome.stopped,
+      forced: stopOutcome.forced,
+      timedOut: stopOutcome.timedOut,
+      exitCode: stopResult.exitCode,
+      signalCode: stopResult.signalCode,
+      durationMs: stopResult.durationMs,
+    }, stopResult.timedOut || stopResult.escalatedToSigkill ? 'warn' : 'info')
+    return stopOutcome
   } catch (err) {
     logMainError('todo_runner.process.stop_failed', err, { jobId, reason })
+    return createTodoRunnerStopOutcome(jobId, {
+      wasRunning: true,
+      stopped: false,
+      forced: false,
+      timedOut: true,
+    })
   }
-  scheduleForceKill(jobId, running.process, reason)
 }
 
 function findLiveTodo(jobId: string, todoId: string): {
@@ -617,16 +684,46 @@ function findJobById(jobId: string): TodoRunnerJobRecord {
   return job
 }
 
-function deleteJob(jobId: string): void {
+async function deleteJob(jobId: string): Promise<TodoRunnerDeleteResult> {
   if (!jobId) throw new Error('Job id is required')
 
-  stopRunningProcess(jobId, 'delete')
   manualRunRequestedJobIds.delete(jobId)
+  const stopOutcome = await stopRunningProcessAndAwait(jobId, 'delete')
+
+  if (stopOutcome.timedOut) {
+    const liveJob = jobsCache.find((job) => job.id === jobId)
+    if (liveJob) {
+      liveJob.enabled = false
+      liveJob.updatedAt = Date.now()
+      writeJobsToDisk(jobsCache)
+    }
+    logMainEvent('todo_runner.delete.completed', {
+      ...stopOutcome,
+      deleted: false,
+    }, 'warn')
+    broadcastTodoRunnerUpdate()
+    return {
+      ...stopOutcome,
+      deleted: false,
+    }
+  }
 
   jobsCache = jobsCache.filter((job) => job.id !== jobId)
   runtimeByJobId.delete(jobId)
+  pendingStartByJobId.delete(jobId)
+  runPromiseByJobId.delete(jobId)
+  stoppedByUserJobIds.delete(jobId)
+  clearForceKillTimer(jobId)
   writeJobsToDisk(jobsCache)
+  logMainEvent('todo_runner.delete.completed', {
+    ...stopOutcome,
+    deleted: true,
+  })
   broadcastTodoRunnerUpdate()
+  return {
+    ...stopOutcome,
+    deleted: true,
+  }
 }
 
 function startJob(jobId: string): TodoRunnerJobView {
@@ -642,17 +739,21 @@ function startJob(jobId: string): TodoRunnerJobView {
   return toJobWithRuntime(job)
 }
 
-function pauseJob(jobId: string): TodoRunnerJobView {
+async function pauseJob(jobId: string): Promise<TodoRunnerPauseResult> {
   const job = findJobById(jobId)
   job.enabled = false
   job.updatedAt = Date.now()
   manualRunRequestedJobIds.delete(jobId)
 
-  stopRunningProcess(jobId, 'pause')
+  const stopOutcome = await stopRunningProcessAndAwait(jobId, 'pause')
 
   writeJobsToDisk(jobsCache)
+  logMainEvent('todo_runner.pause.completed', { ...stopOutcome }, stopOutcome.timedOut ? 'warn' : 'info')
   broadcastTodoRunnerUpdate()
-  return toJobWithRuntime(job)
+  return {
+    job: toJobWithRuntime(job),
+    stopOutcome,
+  }
 }
 
 function resetJob(jobId: string): TodoRunnerJobView {
@@ -1168,7 +1269,7 @@ export function setupTodoRunnerHandlers(): void {
 
   ipcMain.handle('todoRunner:delete', async (_event, jobId: string) => {
     assertAppNotShuttingDown('todoRunner:delete')
-    deleteJob(jobId)
+    return await deleteJob(jobId)
   })
 
   ipcMain.handle('todoRunner:start', async (_event, jobId: string) => {
@@ -1178,7 +1279,7 @@ export function setupTodoRunnerHandlers(): void {
 
   ipcMain.handle('todoRunner:pause', async (_event, jobId: string) => {
     assertAppNotShuttingDown('todoRunner:pause')
-    return pauseJob(jobId)
+    return await pauseJob(jobId)
   })
 
   ipcMain.handle('todoRunner:reset', async (_event, jobId: string) => {

@@ -486,7 +486,10 @@ export function SettingsPanel() {
     }
 
     await runTodoRunnerAction(job, async () => {
-      await window.electronAPI.todoRunner.delete(job.id)
+      const result = await window.electronAPI.todoRunner.delete(job.id)
+      if (!result.stopped || !result.deleted) {
+        throw new Error('Delete timed out while stopping the running todo runner job')
+      }
     })
   }, [runTodoRunnerAction])
 
@@ -519,7 +522,10 @@ export function SettingsPanel() {
     if (job.isDraft) return
 
     await runTodoRunnerAction(job, async () => {
-      await window.electronAPI.todoRunner.pause(job.id)
+      const result = await window.electronAPI.todoRunner.pause(job.id)
+      if (!result.stopOutcome.stopped) {
+        throw new Error('Pause timed out while stopping the running todo runner job')
+      }
     })
   }, [runTodoRunnerAction])
 

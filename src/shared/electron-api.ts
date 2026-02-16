@@ -174,6 +174,23 @@ export interface SchedulerDeleteResult {
   timedOut: boolean
 }
 
+export interface TodoRunnerStopOutcome {
+  jobId: string
+  wasRunning: boolean
+  stopped: boolean
+  forced: boolean
+  timedOut: boolean
+}
+
+export interface TodoRunnerDeleteResult extends TodoRunnerStopOutcome {
+  deleted: boolean
+}
+
+export interface TodoRunnerPauseResult {
+  job: TodoRunnerJob
+  stopOutcome: TodoRunnerStopOutcome
+}
+
 export interface ElectronAPI {
   versions: {
     node: string
@@ -264,9 +281,9 @@ export interface ElectronAPI {
   todoRunner: {
     list: () => Promise<TodoRunnerJob[]>
     upsert: (job: TodoRunnerJobInput) => Promise<TodoRunnerJob>
-    delete: (jobId: string) => Promise<void>
+    delete: (jobId: string) => Promise<TodoRunnerDeleteResult>
     start: (jobId: string) => Promise<TodoRunnerJob>
-    pause: (jobId: string) => Promise<TodoRunnerJob>
+    pause: (jobId: string) => Promise<TodoRunnerPauseResult>
     reset: (jobId: string) => Promise<TodoRunnerJob>
     onUpdated: (callback: () => void) => Unsubscribe
   }
