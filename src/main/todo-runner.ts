@@ -10,6 +10,7 @@ import {
   resolveManagedRuntimeMs,
   runManagedProcess,
   scheduleManagedForceKill,
+  terminateManagedProcess,
 } from './process-runner'
 
 type TodoRunnerRunStatus = 'idle' | 'running' | 'success' | 'error'
@@ -1103,16 +1104,60 @@ export function setupTodoRunnerHandlers(): void {
   })
 }
 
-export function cleanupTodoRunner(): void {
+export async function cleanupTodoRunner(): Promise<void> {
   if (todoRunnerTimer) {
     clearInterval(todoRunnerTimer)
     todoRunnerTimer = null
   }
 
-  for (const [jobId, running] of runningProcessByJobId) {
-    void running
-    stopRunningProcess(jobId, 'cleanup')
+  const runningEntries = Array.from(runningProcessByJobId.entries())
+  if (runningEntries.length > 0) {
+    logMainEvent('todo_runner.cleanup.await_processes.start', {
+      runningProcessCount: runningEntries.length,
+    })
   }
+
+  await Promise.all(runningEntries.map(async ([jobId, running]) => {
+    stoppedByUserJobIds.add(jobId)
+    clearForceKillTimer(jobId)
+    const result = await terminateManagedProcess({
+      process: running.process,
+      sigtermTimeoutMs: TODO_RUNNER_FORCE_KILL_TIMEOUT_MS,
+      sigkillTimeoutMs: TODO_RUNNER_FORCE_KILL_TIMEOUT_MS,
+      onSigtermSent: () => {
+        logMainEvent('todo_runner.process.stop.sigterm_sent', { jobId, reason: 'cleanup' })
+      },
+      onSigtermFailed: (err) => {
+        logMainError('todo_runner.process.stop_failed', err, { jobId, reason: 'cleanup' })
+      },
+      onForceKill: () => {
+        logMainEvent('todo_runner.process.force_kill', { jobId, reason: 'cleanup' })
+      },
+      onForceKillFailed: (err) => {
+        logMainError('todo_runner.process.force_kill_failed', err, { jobId, reason: 'cleanup' })
+      },
+    })
+
+    clearForceKillTimer(jobId)
+    runningProcessByJobId.delete(jobId)
+
+    logMainEvent('todo_runner.process.stop.completed', {
+      jobId,
+      reason: 'cleanup',
+      exitCode: result.exitCode,
+      signalCode: result.signalCode,
+      escalatedToSigkill: result.escalatedToSigkill,
+      timedOut: result.timedOut,
+      durationMs: result.durationMs,
+    }, result.timedOut ? 'warn' : 'info')
+  }))
+
+  if (runningEntries.length > 0) {
+    logMainEvent('todo_runner.cleanup.await_processes.completed', {
+      awaitedProcessCount: runningEntries.length,
+    })
+  }
+
   runningProcessByJobId.clear()
   pendingStartByJobId.clear()
   manualRunRequestedJobIds.clear()

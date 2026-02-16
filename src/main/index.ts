@@ -224,6 +224,8 @@ if (!gotTheLock) {
   let chatPopoutHandlerRegistered = false
   let rendererCrashStreak = 0
   let rendererCrashStreakWindowStart = 0
+  let shutdownInProgress = false
+  let shutdownCompleted = false
 
   app.on('second-instance', () => {
     recordTelemetryEvent('app.second_instance')
@@ -356,6 +358,46 @@ if (!gotTheLock) {
     })
   }
 
+  async function performCoordinatedShutdown(): Promise<void> {
+    const shutdownStartedAt = Date.now()
+    recordTelemetryEvent('app.shutdown.start')
+    logMainEvent('app.shutdown.start')
+
+    // Close all popped-out chat windows first.
+    for (const [, win] of chatWindows) {
+      if (!win.isDestroyed()) win.close()
+    }
+    chatWindows.clear()
+
+    cleanupTerminals()
+    cleanupLspServers()
+
+    const shutdownSteps: Array<{ name: string; run: () => Promise<void> }> = [
+      { name: 'scheduler', run: cleanupScheduler },
+      { name: 'todo_runner', run: cleanupTodoRunner },
+      { name: 'claude_sessions', run: cleanupClaudeSessions },
+      { name: 'memories', run: cleanupMemories },
+    ]
+
+    for (const step of shutdownSteps) {
+      const stepStartedAt = Date.now()
+      logMainEvent('app.shutdown.step.start', { step: step.name })
+      try {
+        await step.run()
+        logMainEvent('app.shutdown.step.completed', {
+          step: step.name,
+          durationMs: Date.now() - stepStartedAt,
+        })
+      } catch (err) {
+        logMainError('app.shutdown.step_failed', err, { step: step.name })
+      }
+    }
+
+    const durationMs = Date.now() - shutdownStartedAt
+    recordTelemetryEvent('app.shutdown.completed', { durationMs })
+    logMainEvent('app.shutdown.completed', { durationMs })
+  }
+
   app.whenReady().then(() => {
     addStartupBreadcrumb('app.ready')
     recordTelemetryEvent('app.ready')
@@ -404,20 +446,27 @@ if (!gotTheLock) {
     recordException('app.whenReady', err)
   })
 
-  app.on('before-quit', () => {
-    recordTelemetryEvent('app.before_quit')
-    // Close all popped-out chat windows first
-    for (const [, win] of chatWindows) {
-      if (!win.isDestroyed()) win.close()
-    }
-    chatWindows.clear()
+  app.on('before-quit', (event) => {
+    recordTelemetryEvent('app.before_quit', {
+      shutdownInProgress,
+      shutdownCompleted,
+    })
 
-    cleanupTerminals()
-    cleanupClaudeSessions()
-    cleanupLspServers()
-    cleanupMemories().catch(() => {})
-    cleanupScheduler()
-    cleanupTodoRunner()
+    if (shutdownCompleted) return
+
+    event.preventDefault()
+    if (shutdownInProgress) return
+
+    shutdownInProgress = true
+    void performCoordinatedShutdown()
+      .catch((err) => {
+        logMainError('app.shutdown.failed', err)
+      })
+      .finally(() => {
+        shutdownCompleted = true
+        shutdownInProgress = false
+        app.quit()
+      })
   })
 
   app.on('window-all-closed', () => {

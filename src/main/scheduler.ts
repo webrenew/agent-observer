@@ -12,6 +12,7 @@ import {
   resolveManagedRuntimeMs,
   runManagedProcess,
   scheduleManagedForceKill,
+  terminateManagedProcess,
 } from './process-runner'
 
 type SchedulerRunStatus = 'idle' | 'running' | 'success' | 'error'
@@ -1124,7 +1125,7 @@ export function setupSchedulerHandlers(): void {
   })
 }
 
-export function cleanupScheduler(): void {
+export async function cleanupScheduler(): Promise<void> {
   if (schedulerTimer) {
     clearInterval(schedulerTimer)
     schedulerTimer = null
@@ -1134,13 +1135,49 @@ export function cleanupScheduler(): void {
   lastSuccessfulSchedulerTickAt = null
   pendingCronRunsByTaskId.clear()
   cronDispatchInFlightByTaskId.clear()
-  for (const [taskId, proc] of runningProcessByTaskId) {
-    try {
-      proc.kill('SIGTERM')
-      scheduleSchedulerForceKill(taskId, proc, 'cleanup')
-    } catch (err) {
-      logMainError('scheduler.process.stop_failed', err, { taskId, reason: 'cleanup' })
-      scheduleSchedulerForceKill(taskId, proc, 'cleanup')
-    }
-  }
+
+  const runningEntries = Array.from(runningProcessByTaskId.entries())
+  if (runningEntries.length === 0) return
+
+  logMainEvent('scheduler.cleanup.await_processes.start', {
+    runningProcessCount: runningEntries.length,
+  })
+
+  await Promise.all(runningEntries.map(async ([taskId, proc]) => {
+    clearSchedulerForceKillTimer(taskId)
+    const result = await terminateManagedProcess({
+      process: proc,
+      sigtermTimeoutMs: SCHEDULER_FORCE_KILL_TIMEOUT_MS,
+      sigkillTimeoutMs: SCHEDULER_FORCE_KILL_TIMEOUT_MS,
+      onSigtermSent: () => {
+        logMainEvent('scheduler.process.stop.sigterm_sent', { taskId, reason: 'cleanup' })
+      },
+      onSigtermFailed: (err) => {
+        logMainError('scheduler.process.stop_failed', err, { taskId, reason: 'cleanup' })
+      },
+      onForceKill: () => {
+        logMainEvent('scheduler.process.force_kill', { taskId, reason: 'cleanup' }, 'warn')
+      },
+      onForceKillFailed: (err) => {
+        logMainError('scheduler.process.force_kill_failed', err, { taskId, reason: 'cleanup' })
+      },
+    })
+
+    clearSchedulerForceKillTimer(taskId)
+    runningProcessByTaskId.delete(taskId)
+
+    logMainEvent('scheduler.process.stop.completed', {
+      taskId,
+      reason: 'cleanup',
+      exitCode: result.exitCode,
+      signalCode: result.signalCode,
+      escalatedToSigkill: result.escalatedToSigkill,
+      timedOut: result.timedOut,
+      durationMs: result.durationMs,
+    }, result.timedOut ? 'warn' : 'info')
+  }))
+
+  logMainEvent('scheduler.cleanup.await_processes.completed', {
+    awaitedProcessCount: runningEntries.length,
+  })
 }

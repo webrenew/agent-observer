@@ -54,6 +54,164 @@ export function scheduleManagedForceKill(options: {
   options.timers.set(options.key, timer)
 }
 
+interface WaitForProcessExitResult {
+  exitCode: number | null
+  signalCode: NodeJS.Signals | null
+  timedOut: boolean
+}
+
+function hasProcessExited(process: ChildProcess): boolean {
+  return process.exitCode !== null || process.signalCode !== null
+}
+
+function waitForProcessExit(process: ChildProcess, timeoutMs: number): Promise<WaitForProcessExitResult> {
+  if (hasProcessExited(process)) {
+    return Promise.resolve({
+      exitCode: process.exitCode,
+      signalCode: process.signalCode,
+      timedOut: false,
+    })
+  }
+
+  return new Promise((resolve) => {
+    let settled = false
+    let timeout: NodeJS.Timeout | null = null
+
+    const cleanup = () => {
+      process.off('exit', onExit)
+      process.off('error', onError)
+      if (timeout) {
+        clearTimeout(timeout)
+        timeout = null
+      }
+    }
+
+    const settle = (result: WaitForProcessExitResult) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(result)
+    }
+
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      settle({
+        exitCode: code,
+        signalCode: signal,
+        timedOut: false,
+      })
+    }
+
+    const onError = () => {
+      settle({
+        exitCode: process.exitCode,
+        signalCode: process.signalCode,
+        timedOut: false,
+      })
+    }
+
+    process.once('exit', onExit)
+    process.once('error', onError)
+    timeout = setTimeout(() => {
+      settle({
+        exitCode: process.exitCode,
+        signalCode: process.signalCode,
+        timedOut: true,
+      })
+    }, Math.max(1, timeoutMs))
+  })
+}
+
+function sendSignal(process: ChildProcess, signal: NodeJS.Signals): { sent: boolean; error: unknown | null } {
+  if (hasProcessExited(process)) {
+    return { sent: false, error: null }
+  }
+
+  try {
+    const sent = process.kill(signal)
+    if (!sent && !hasProcessExited(process)) {
+      return { sent: false, error: new Error(`Failed to send ${signal}`) }
+    }
+    return { sent, error: null }
+  } catch (error) {
+    return { sent: false, error }
+  }
+}
+
+export interface TerminateManagedProcessOptions {
+  process: ChildProcess
+  sigtermTimeoutMs: number
+  sigkillTimeoutMs?: number
+  onSigtermSent?: () => void
+  onSigtermFailed?: (error: unknown) => void
+  onForceKill?: () => void
+  onForceKillFailed?: (error: unknown) => void
+}
+
+export interface TerminateManagedProcessResult {
+  exitCode: number | null
+  signalCode: NodeJS.Signals | null
+  escalatedToSigkill: boolean
+  timedOut: boolean
+  durationMs: number
+}
+
+export async function terminateManagedProcess(
+  options: TerminateManagedProcessOptions
+): Promise<TerminateManagedProcessResult> {
+  const startedAt = Date.now()
+  const childProcess = options.process
+
+  if (hasProcessExited(childProcess)) {
+    return {
+      exitCode: childProcess.exitCode,
+      signalCode: childProcess.signalCode,
+      escalatedToSigkill: false,
+      timedOut: false,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+
+  const sigtermResult = sendSignal(childProcess, 'SIGTERM')
+  if (sigtermResult.error) {
+    options.onSigtermFailed?.(sigtermResult.error)
+  } else if (sigtermResult.sent) {
+    options.onSigtermSent?.()
+  }
+
+  const sigtermWait = await waitForProcessExit(childProcess, options.sigtermTimeoutMs)
+  if (!sigtermWait.timedOut || hasProcessExited(childProcess)) {
+    return {
+      exitCode: sigtermWait.exitCode,
+      signalCode: sigtermWait.signalCode,
+      escalatedToSigkill: false,
+      timedOut: false,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+
+  let escalatedToSigkill = false
+  const sigkillResult = sendSignal(childProcess, 'SIGKILL')
+  if (sigkillResult.error) {
+    options.onForceKillFailed?.(sigkillResult.error)
+  } else if (sigkillResult.sent) {
+    escalatedToSigkill = true
+    options.onForceKill?.()
+  }
+
+  const sigkillWait = await waitForProcessExit(
+    childProcess,
+    options.sigkillTimeoutMs ?? options.sigtermTimeoutMs
+  )
+
+  return {
+    exitCode: sigkillWait.exitCode,
+    signalCode: sigkillWait.signalCode,
+    escalatedToSigkill,
+    timedOut: sigkillWait.timedOut && !hasProcessExited(childProcess),
+    durationMs: Date.now() - startedAt,
+  }
+}
+
 export interface RunManagedProcessOptions {
   command: string
   args?: string[]

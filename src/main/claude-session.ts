@@ -6,6 +6,7 @@ import fs from 'fs'
 import os from 'os'
 import { resolveClaudeProfileForDirectory } from './claude-profile'
 import { logMainError, logMainEvent } from './diagnostics'
+import { terminateManagedProcess } from './process-runner'
 
 // ── Types (mirrored from renderer, kept lightweight for main process) ──
 
@@ -738,19 +739,72 @@ function stopSession(sessionId: string): void {
   const session = activeSessions.get(sessionId)
   if (!session) return
 
-  session.stopRequested = true
-  logMainEvent('claude.session.stop.requested', { sessionId })
+  void stopSessionAndAwaitTermination(session, 'manual_stop').catch((err) => {
+    logMainError('claude.session.stop.await_failed', err, { sessionId, reason: 'manual_stop' })
+  })
+}
+
+type SessionStopReason = 'manual_stop' | 'cleanup'
+
+async function stopSessionAndAwaitTermination(
+  session: ActiveSession,
+  reason: SessionStopReason
+): Promise<void> {
+  if (!session.stopRequested) {
+    session.stopRequested = true
+    logMainEvent('claude.session.stop.requested', {
+      sessionId: session.sessionId,
+      reason,
+    })
+  }
 
   clearSessionTimers(session)
-  scheduleSessionForceKill(session, 'manual_stop')
 
   try {
     session.readline.close()
-    session.process.kill('SIGTERM')
-    logMainEvent('claude.session.stop.sigterm_sent', { sessionId })
-  } catch (err: unknown) {
-    logMainError('claude.session.stop.sigterm_failed', err, { sessionId })
+  } catch {
+    // Readline may already be closed while process exits.
   }
+
+  const result = await terminateManagedProcess({
+    process: session.process,
+    sigtermTimeoutMs: CLAUDE_SESSION_FORCE_KILL_TIMEOUT_MS,
+    sigkillTimeoutMs: CLAUDE_SESSION_FORCE_KILL_TIMEOUT_MS,
+    onSigtermSent: () => {
+      logMainEvent('claude.session.stop.sigterm_sent', {
+        sessionId: session.sessionId,
+        reason,
+      })
+    },
+    onSigtermFailed: (err) => {
+      logMainError('claude.session.stop.sigterm_failed', err, {
+        sessionId: session.sessionId,
+        reason,
+      })
+    },
+    onForceKill: () => {
+      logMainEvent('claude.session.force_kill', {
+        sessionId: session.sessionId,
+        reason,
+      }, 'warn')
+    },
+    onForceKillFailed: (err) => {
+      logMainError('claude.session.force_kill_failed', err, {
+        sessionId: session.sessionId,
+        reason,
+      })
+    },
+  })
+
+  logMainEvent('claude.session.stop.awaited', {
+    sessionId: session.sessionId,
+    reason,
+    exitCode: result.exitCode,
+    signalCode: result.signalCode,
+    escalatedToSigkill: result.escalatedToSigkill,
+    timedOut: result.timedOut,
+    durationMs: result.durationMs,
+  }, result.timedOut ? 'warn' : 'info')
 }
 
 // ── IPC Setup ──────────────────────────────────────────────────────────
@@ -808,10 +862,24 @@ export function setupClaudeSessionHandlers(_mainWindow: BrowserWindow): void {
   })
 }
 
-export function cleanupClaudeSessions(): void {
-  for (const [id] of activeSessions) {
-    stopSession(id)
+export async function cleanupClaudeSessions(): Promise<void> {
+  const sessions = Array.from(activeSessions.values())
+  if (sessions.length > 0) {
+    logMainEvent('claude.cleanup.await_sessions.start', {
+      activeSessionCount: sessions.length,
+    })
   }
+
+  await Promise.all(sessions.map(async (session) => {
+    await stopSessionAndAwaitTermination(session, 'cleanup')
+  }))
+
+  if (sessions.length > 0) {
+    logMainEvent('claude.cleanup.await_sessions.completed', {
+      awaitedSessionCount: sessions.length,
+    })
+  }
+
   observerWebContentsIdsBySessionId.clear()
   observedSessionIdsByWebContentsId.clear()
 }
