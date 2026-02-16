@@ -8,6 +8,7 @@ import type {
   TodoRunnerJob,
   TodoRunnerJobInput,
 } from '../renderer/types'
+import type { PanelId } from './panel-registry'
 
 export type Unsubscribe = () => void
 
@@ -101,7 +102,7 @@ export interface ElectronAPI {
     onNewTerminal: (callback: () => void) => Unsubscribe
     onFocusChat: (callback: () => void) => Unsubscribe
     onResetLayout: (callback: () => void) => Unsubscribe
-    onFocusPanel: (callback: (panelId: string) => void) => Unsubscribe
+    onFocusPanel: (callback: (panelId: PanelId) => void) => Unsubscribe
   }
   fs: {
     readDir: (dirPath: string, showHidden?: boolean) => Promise<FsEntry[]>

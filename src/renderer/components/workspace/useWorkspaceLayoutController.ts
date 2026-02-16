@@ -3,7 +3,6 @@ import {
   type DropZone,
   type Layout,
   type PanelId,
-  ALL_PANELS,
   PANEL_MIN_HEIGHT,
   DEFAULT_LAYOUT,
   getDropZone,
@@ -13,10 +12,12 @@ import {
   clampDropZone,
   findAllPanelsInLayout,
 } from './layout-engine'
+import { isPanelId } from '../../../shared/panel-registry'
 import { useAgentStore } from '../../store/agents'
 import { useSettingsStore } from '../../store/settings'
 import { useWorkspaceStore } from '../../store/workspace'
 import {
+  PANEL_SHORTCUTS,
   useHotkeys,
   type HotkeyBinding,
   SHORTCUTS,
@@ -27,10 +28,6 @@ const WORKSPACE_LAYOUT_STATE_KEY = 'agent-observer:workspaceLayoutState'
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function isPanelId(value: unknown): value is PanelId {
-  return typeof value === 'string' && ALL_PANELS.includes(value as PanelId)
 }
 
 function normalizePanelSlot(value: unknown): PanelId | PanelId[] | null {
@@ -467,17 +464,13 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
   }, [focusPanel])
 
   const hotkeyBindings: HotkeyBinding[] = [
-    ...PANEL_SHORTCUT_ORDER.map((panelId, index) => {
-      const shortcutKey = `focus${panelId.charAt(0).toUpperCase() + panelId.slice(1)}` as keyof typeof SHORTCUTS
-      const def = SHORTCUTS[shortcutKey] ?? {
-        hotkey: { key: String(index + 1), metaOrCtrl: true },
-        label: `⌘${index + 1}`,
-      }
+    ...PANEL_SHORTCUT_ORDER.map((panelId) => {
+      const def = PANEL_SHORTCUTS[panelId]
       return {
         hotkey: def.hotkey,
         label: def.label,
         description: def.description,
-        handler: () => focusPanel(panelId as PanelId),
+        handler: () => focusPanel(panelId),
       }
     }),
     {
@@ -571,8 +564,8 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
     }
 
     if (api.onFocusPanel) {
-      unsubs.push(api.onFocusPanel((panelId: string) => {
-        focusPanel(panelId as PanelId)
+      unsubs.push(api.onFocusPanel((panelId) => {
+        focusPanel(panelId)
       }))
     }
 

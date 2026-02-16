@@ -4,6 +4,11 @@ import path from 'path'
 import os from 'os'
 import type { AppSettings } from '../renderer/types'
 import { writeFileAtomicSync } from './atomic-write'
+import {
+  PANEL_MENU_LABELS,
+  PANEL_SHORTCUT_ORDER,
+  panelFocusChannel,
+} from '../shared/panel-registry'
 
 const DEFAULT_LOCAL_DEV_DIRECTORY = path.join(os.homedir(), 'dev')
 
@@ -232,19 +237,16 @@ export function createApplicationMenu(mainWindow: BrowserWindow): void {
     }
   }
 
-  /** Panel focus items (Cmd/Ctrl+1 through 8) */
+  /** Panel focus items (Cmd/Ctrl+1 through N) */
   const panelItems: Electron.MenuItemConstructorOptions[] = [
-    { label: 'Chat', accelerator: `${mod}+1`, click: () => send('menu:focusPanel:chat') },
-    { label: 'Terminal', accelerator: `${mod}+2`, click: () => send('menu:focusPanel:terminal') },
-    { label: 'Tokens', accelerator: `${mod}+3`, click: () => send('menu:focusPanel:tokens') },
-    { label: 'Office', accelerator: `${mod}+4`, click: () => send('menu:focusPanel:scene3d') },
-    { label: 'Activity', accelerator: `${mod}+5`, click: () => send('menu:focusPanel:activity') },
-    { label: 'Memory Graph', accelerator: `${mod}+6`, click: () => send('menu:focusPanel:memoryGraph') },
-    { label: 'Agents', accelerator: `${mod}+7`, click: () => send('menu:focusPanel:agents') },
-    { label: 'Recent', accelerator: `${mod}+8`, click: () => send('menu:focusPanel:recentMemories') },
+    ...PANEL_SHORTCUT_ORDER.map((panelId, index) => ({
+      label: PANEL_MENU_LABELS[panelId],
+      accelerator: `${mod}+${index + 1}`,
+      click: () => send(panelFocusChannel(panelId)),
+    })),
     { type: 'separator' },
-    { label: 'Search Files', accelerator: `${mod}+P`, click: () => send('menu:focusPanel:fileSearch') },
-    { label: 'File Explorer', accelerator: `${mod}+Shift+E`, click: () => send('menu:focusPanel:fileExplorer') },
+    { label: 'Search Files', accelerator: `${mod}+P`, click: () => send(panelFocusChannel('fileSearch')) },
+    { label: 'File Explorer', accelerator: `${mod}+Shift+E`, click: () => send(panelFocusChannel('fileExplorer')) },
   ]
 
   const template: Electron.MenuItemConstructorOptions[] = isMac

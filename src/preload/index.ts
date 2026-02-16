@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ElectronAPI } from '../shared/electron-api'
+import {
+  PANEL_FOCUS_CHANNELS,
+  panelIdFromFocusChannel,
+  type PanelId,
+} from '../shared/panel-registry'
 
 const electronAPI: ElectronAPI = {
   versions: {
@@ -85,19 +90,15 @@ const electronAPI: ElectronAPI = {
       return () => { ipcRenderer.removeListener('menu:resetLayout', handler) }
     },
 
-    onFocusPanel: (callback: (panelId: string) => void) => {
-      const channels = [
-        'menu:focusPanel:chat', 'menu:focusPanel:terminal', 'menu:focusPanel:tokens',
-        'menu:focusPanel:scene3d', 'menu:focusPanel:activity', 'menu:focusPanel:memoryGraph',
-        'menu:focusPanel:agents', 'menu:focusPanel:recentMemories',
-        'menu:focusPanel:fileExplorer', 'menu:focusPanel:fileSearch', 'menu:focusPanel:filePreview',
-      ]
-      const handlers = channels.map((ch) => {
-        const panelId = ch.split(':').pop()!
+    onFocusPanel: (callback: (panelId: PanelId) => void) => {
+      const handlers: Array<{ ch: (typeof PANEL_FOCUS_CHANNELS)[number]; handler: () => void }> = []
+      for (const ch of PANEL_FOCUS_CHANNELS) {
+        const panelId = panelIdFromFocusChannel(ch)
+        if (!panelId) continue
         const handler = () => callback(panelId)
         ipcRenderer.on(ch, handler)
-        return { ch, handler }
-      })
+        handlers.push({ ch, handler })
+      }
       return () => {
         for (const { ch, handler } of handlers) {
           ipcRenderer.removeListener(ch, handler)

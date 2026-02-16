@@ -1,16 +1,10 @@
-// ── Panel Types ───────────────────────────────────────────────────
+import {
+  type PanelId,
+  ALL_PANELS,
+  PANEL_LABELS,
+} from '../../../shared/panel-registry'
 
-export type PanelId =
-  | 'chat'
-  | 'terminal'
-  | 'tokens'
-  | 'scene3d'
-  | 'activity'
-  | 'agents'
-  | 'recentMemories'
-  | 'fileExplorer'
-  | 'fileSearch'
-  | 'filePreview'
+export type { PanelId } from '../../../shared/panel-registry'
 
 /** A slot is either a single panel or a tabbed stack of panels */
 export type PanelSlot = PanelId | PanelId[]
@@ -30,24 +24,7 @@ export type Layout = LayoutColumn[]
 
 // ── Constants ─────────────────────────────────────────────────────
 
-export const ALL_PANELS: PanelId[] = [
-  'chat', 'terminal', 'tokens',
-  'scene3d', 'activity', 'agents', 'recentMemories',
-  'fileExplorer', 'fileSearch', 'filePreview',
-]
-
-export const PANEL_LABELS: Record<PanelId, string> = {
-  chat: 'CHAT',
-  terminal: 'TERMINAL',
-  tokens: 'TOKENS',
-  scene3d: 'OFFICE',
-  activity: 'ACTIVITY',
-  agents: 'AGENTS',
-  recentMemories: 'RECENT',
-  fileExplorer: 'EXPLORER',
-  fileSearch: 'SEARCH',
-  filePreview: 'EDITOR',
-}
+export { ALL_PANELS, PANEL_LABELS }
 
 export const PANEL_MIN_HEIGHT = 60
 

@@ -1,4 +1,9 @@
 import { useEffect, useRef } from 'react'
+import {
+  type PanelId,
+  PANEL_MENU_LABELS,
+  PANEL_SHORTCUT_ORDER as PANEL_SHORTCUT_ORDER_FROM_REGISTRY,
+} from '../../shared/panel-registry'
 
 /**
  * Keyboard shortcut descriptor.
@@ -108,18 +113,40 @@ export function formatShortcut(hk: Hotkey): string {
   return parts.join('')
 }
 
+function buildPanelShortcut(panelId: PanelId, index: number) {
+  const key = String(index + 1)
+  return {
+    hotkey: { key, metaOrCtrl: true },
+    label: `${MOD}${key}`,
+    description: `Focus ${PANEL_MENU_LABELS[panelId]}`,
+  }
+}
+
+export const PANEL_SHORTCUT_ORDER = [...PANEL_SHORTCUT_ORDER_FROM_REGISTRY]
+
+export const PANEL_SHORTCUTS: Record<PanelId, {
+  hotkey: Hotkey
+  label: string
+  description: string
+}> = Object.fromEntries(
+  PANEL_SHORTCUT_ORDER.map((panelId, index) => [panelId, buildPanelShortcut(panelId, index)])
+) as Record<PanelId, {
+  hotkey: Hotkey
+  label: string
+  description: string
+}>
+
 // ── Pre-built shortcut definitions ─────────────────────────────────
 
 export const SHORTCUTS = {
   // Panel switching (Cmd+1–8)
-  focusChat:        { hotkey: { key: '1', metaOrCtrl: true }, label: `${MOD}1`, description: 'Focus Chat' },
-  focusTerminal:    { hotkey: { key: '2', metaOrCtrl: true }, label: `${MOD}2`, description: 'Focus Terminal' },
-  focusTokens:      { hotkey: { key: '3', metaOrCtrl: true }, label: `${MOD}3`, description: 'Focus Tokens' },
-  focusOffice:      { hotkey: { key: '4', metaOrCtrl: true }, label: `${MOD}4`, description: 'Focus Office' },
-  focusActivity:    { hotkey: { key: '5', metaOrCtrl: true }, label: `${MOD}5`, description: 'Focus Activity' },
-  focusMemoryGraph: { hotkey: { key: '6', metaOrCtrl: true }, label: `${MOD}6`, description: 'Focus Memory Graph' },
-  focusAgents:      { hotkey: { key: '7', metaOrCtrl: true }, label: `${MOD}7`, description: 'Focus Agents' },
-  focusRecent:      { hotkey: { key: '8', metaOrCtrl: true }, label: `${MOD}8`, description: 'Focus Recent' },
+  focusChat:        PANEL_SHORTCUTS.chat,
+  focusTerminal:    PANEL_SHORTCUTS.terminal,
+  focusTokens:      PANEL_SHORTCUTS.tokens,
+  focusOffice:      PANEL_SHORTCUTS.scene3d,
+  focusActivity:    PANEL_SHORTCUTS.activity,
+  focusAgents:      PANEL_SHORTCUTS.agents,
+  focusRecent:      PANEL_SHORTCUTS.recentMemories,
 
   // Actions
   newTerminal:      { hotkey: { key: 'n', metaOrCtrl: true, shift: true }, label: `${MOD}${SHIFT}N`, description: 'New Terminal' },
@@ -135,9 +162,3 @@ export const SHORTCUTS = {
   fileExplorer:     { hotkey: { key: 'e', metaOrCtrl: true, shift: true }, label: `${MOD}${SHIFT}E`, description: 'File Explorer' },
   escape:           { hotkey: { key: 'Escape' }, label: 'Esc', description: 'Close Menus / Deselect' },
 } as const
-
-/** Ordered panel IDs — index maps to Cmd+1 through Cmd+7 */
-export const PANEL_SHORTCUT_ORDER = [
-  'chat', 'terminal', 'tokens', 'scene3d',
-  'activity', 'agents', 'recentMemories',
-] as const

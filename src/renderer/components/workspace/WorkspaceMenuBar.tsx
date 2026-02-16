@@ -4,15 +4,13 @@ import { useAgentStore } from '../../store/agents'
 import { useSettingsStore } from '../../store/settings'
 import { useWorkspaceStore } from '../../store/workspace'
 import {
+  PANEL_SHORTCUTS,
   SHORTCUTS,
   PANEL_SHORTCUT_ORDER,
-  formatShortcut,
 } from '../../hooks/useHotkeys'
 
 const PANEL_SHORTCUT_LABELS: Partial<Record<PanelId, string>> = {
-  ...Object.fromEntries(
-    PANEL_SHORTCUT_ORDER.map((id, idx) => [id, formatShortcut({ key: String(idx + 1), metaOrCtrl: true })])
-  ),
+  ...Object.fromEntries(PANEL_SHORTCUT_ORDER.map((id) => [id, PANEL_SHORTCUTS[id].label])),
   fileSearch: SHORTCUTS.fileSearch.label,
   fileExplorer: SHORTCUTS.fileExplorer.label,
 }

@@ -12,5 +12,5 @@
     "forceConsistentCasingInFileNames": true,
     "composite": true
   },
-  "include": ["src/renderer/**/*"]
+  "include": ["src/renderer/**/*", "src/shared/**/*"]
 }
