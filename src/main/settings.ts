@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import type { AppSettings } from '../renderer/types'
+import { writeFileAtomicSync } from './atomic-write'
 
 const DEFAULT_LOCAL_DEV_DIRECTORY = path.join(os.homedir(), 'dev')
 
@@ -122,7 +123,7 @@ export function loadSettings(): AppSettings {
       const normalized = normalizeStartingDirectory(merged)
       cachedSettings = normalized.settings
       if (normalized.changed) {
-        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(cachedSettings, null, 2), 'utf-8')
+        writeFileAtomicSync(SETTINGS_FILE, JSON.stringify(cachedSettings, null, 2))
       }
     } else {
       cachedSettings = { ...DEFAULT_SETTINGS }
@@ -138,7 +139,7 @@ function saveSettings(settings: AppSettings): void {
     if (!fs.existsSync(SETTINGS_DIR)) {
       fs.mkdirSync(SETTINGS_DIR, { recursive: true })
     }
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8')
+    writeFileAtomicSync(SETTINGS_FILE, JSON.stringify(settings, null, 2))
     cachedSettings = settings
   } catch (err) {
     console.error('Failed to save settings:', err)

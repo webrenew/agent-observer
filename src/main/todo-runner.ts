@@ -5,6 +5,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { logMainError, logMainEvent } from './diagnostics'
+import { writeFileAtomicSync } from './atomic-write'
 
 type TodoRunnerRunStatus = 'idle' | 'running' | 'success' | 'error'
 type TodoRunnerRunTrigger = 'auto' | 'manual'
@@ -257,7 +258,7 @@ function readJobsFromDisk(): TodoRunnerJobRecord[] {
 
 function writeJobsToDisk(jobs: TodoRunnerJobRecord[]): void {
   ensureTodoRunnerDir()
-  fs.writeFileSync(TODO_RUNNER_FILE, JSON.stringify(jobs, null, 2), 'utf-8')
+  writeFileAtomicSync(TODO_RUNNER_FILE, JSON.stringify(jobs, null, 2))
 }
 
 function loadJobsCache(): void {

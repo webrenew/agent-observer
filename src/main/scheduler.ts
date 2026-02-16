@@ -7,6 +7,7 @@ import path from 'path'
 import { getClaudeBinaryPath, getClaudeEnvironment } from './claude-session'
 import { logMainError, logMainEvent } from './diagnostics'
 import { resolveClaudeProfileForDirectory } from './claude-profile'
+import { writeFileAtomicSync } from './atomic-write'
 
 type SchedulerRunStatus = 'idle' | 'running' | 'success' | 'error'
 type SchedulerRunTrigger = 'cron' | 'manual'
@@ -340,7 +341,7 @@ function readTasksFromDisk(): SchedulerTask[] {
 
 function writeTasksToDisk(tasks: SchedulerTask[]): void {
   ensureSchedulerDir()
-  fs.writeFileSync(SCHEDULER_FILE, JSON.stringify(tasks, null, 2), 'utf-8')
+  writeFileAtomicSync(SCHEDULER_FILE, JSON.stringify(tasks, null, 2))
 }
 
 function loadTasksCache(): void {
