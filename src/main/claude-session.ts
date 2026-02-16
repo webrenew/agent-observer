@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { spawn, ChildProcess, execFileSync } from 'child_process'
+import { spawn, ChildProcess, execFile } from 'child_process'
 import { createInterface, Interface as ReadlineInterface } from 'readline'
 import path from 'path'
 import fs from 'fs'
@@ -35,6 +35,13 @@ interface ActiveSession {
   stopRequested: boolean
 }
 
+interface ClaudeAvailabilityResult {
+  available: boolean
+  binaryPath: string | null
+  version: string | null
+  error?: string
+}
+
 // ── State ──────────────────────────────────────────────────────────────
 
 const activeSessions = new Map<string, ActiveSession>()
@@ -43,6 +50,8 @@ let sessionCounter = 0
 const CLAUDE_SESSION_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
 const CLAUDE_SESSION_FORCE_KILL_TIMEOUT_MS = 5_000
 const CLAUDE_SESSION_STDERR_MAX_CHARS = 4_000
+const CLAUDE_AVAILABILITY_TIMEOUT_MS = 5_000
+const CLAUDE_AVAILABILITY_CACHE_TTL_MS = 30_000
 
 function resolveSessionMaxRuntimeMs(): number {
   const raw = process.env.AGENT_SPACE_CLAUDE_MAX_RUNTIME_MS
@@ -134,22 +143,6 @@ function resolveClaudeBinary(): string {
     }
   }
 
-  // Last resort: try asking the user's login shell
-  try {
-    const shell = process.env.SHELL ?? '/bin/zsh'
-    const result = execFileSync(shell, ['-ilc', 'which claude'], {
-      encoding: 'utf-8',
-      timeout: 5000,
-      env: { ...process.env, HOME: home },
-    }).trim()
-    if (result && fs.existsSync(result)) {
-      console.log(`[claude-session] Resolved claude via login shell: ${result}`)
-      return result
-    }
-  } catch {
-    // Shell resolution failed — continue
-  }
-
   // Fall back to bare 'claude' and let spawn try PATH
   console.warn('[claude-session] Could not resolve claude binary, falling back to bare "claude"')
   return 'claude'
@@ -178,6 +171,8 @@ function getEnhancedEnv(): NodeJS.ProcessEnv {
 }
 
 let resolvedClaudePath: string | null = null
+let availabilityCache: { result: ClaudeAvailabilityResult; expiresAt: number } | null = null
+let availabilityCheckInFlight: Promise<ClaudeAvailabilityResult> | null = null
 
 export function getClaudeBinaryPath(): string {
   if (!resolvedClaudePath) {
@@ -190,38 +185,110 @@ export function getClaudeEnvironment(): NodeJS.ProcessEnv {
   return getEnhancedEnv()
 }
 
-function checkClaudeAvailability(): {
-  available: boolean
-  binaryPath: string | null
-  version: string | null
-  error?: string
-} {
-  try {
-    if (!resolvedClaudePath) {
-      resolvedClaudePath = resolveClaudeBinary()
-    }
-    const binaryPath = resolvedClaudePath
-    const version = execFileSync(binaryPath, ['--version'], {
-      encoding: 'utf-8',
-      timeout: 5000,
-      env: getEnhancedEnv(),
-      cwd: process.cwd(),
-    }).trim()
-
-    return {
-      available: true,
-      binaryPath,
-      version: version || null,
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    return {
-      available: false,
-      binaryPath: resolvedClaudePath,
-      version: null,
-      error: message,
-    }
+function updateAvailabilityCache(result: ClaudeAvailabilityResult): ClaudeAvailabilityResult {
+  availabilityCache = {
+    result,
+    expiresAt: Date.now() + CLAUDE_AVAILABILITY_CACHE_TTL_MS,
   }
+  return result
+}
+
+function execFileText(
+  command: string,
+  args: string[],
+  options: {
+    env?: NodeJS.ProcessEnv
+    cwd?: string
+  }
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      {
+        encoding: 'utf-8',
+        timeout: CLAUDE_AVAILABILITY_TIMEOUT_MS,
+        env: options.env,
+        cwd: options.cwd,
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error)
+          return
+        }
+        resolve(stdout)
+      }
+    )
+  })
+}
+
+async function resolveClaudeBinaryViaLoginShell(): Promise<string | null> {
+  const home = os.homedir()
+  const shell = process.env.SHELL ?? '/bin/zsh'
+  try {
+    const rawPath = await execFileText(shell, ['-ilc', 'which claude'], {
+      env: { ...process.env, HOME: home },
+      cwd: process.cwd(),
+    })
+    const resolvedPath = rawPath.trim()
+    if (!resolvedPath) return null
+    fs.accessSync(resolvedPath, fs.constants.X_OK)
+    return resolvedPath
+  } catch {
+    return null
+  }
+}
+
+async function checkClaudeAvailability(): Promise<ClaudeAvailabilityResult> {
+  const cached = availabilityCache
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.result
+  }
+  if (availabilityCheckInFlight) {
+    return availabilityCheckInFlight
+  }
+
+  const checkPromise = (async (): Promise<ClaudeAvailabilityResult> => {
+    const enhancedEnv = getEnhancedEnv()
+    const candidatePaths: string[] = [getClaudeBinaryPath()]
+    const loginShellPath = await resolveClaudeBinaryViaLoginShell()
+    if (loginShellPath && !candidatePaths.includes(loginShellPath)) {
+      candidatePaths.push(loginShellPath)
+    }
+
+    let lastError: string | null = null
+    for (const candidatePath of candidatePaths) {
+      try {
+        const rawVersion = await execFileText(candidatePath, ['--version'], {
+          env: enhancedEnv,
+          cwd: process.cwd(),
+        })
+        resolvedClaudePath = candidatePath
+        return updateAvailabilityCache({
+          available: true,
+          binaryPath: candidatePath,
+          version: rawVersion.trim() || null,
+        })
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err.message : String(err)
+      }
+    }
+
+    return updateAvailabilityCache({
+      available: false,
+      binaryPath: candidatePaths[0] ?? resolvedClaudePath,
+      version: null,
+      error: lastError ?? 'Unable to resolve Claude CLI binary',
+    })
+  })()
+
+  availabilityCheckInFlight = checkPromise
+  void checkPromise.finally(() => {
+    if (availabilityCheckInFlight === checkPromise) {
+      availabilityCheckInFlight = null
+    }
+  })
+  return checkPromise
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -620,8 +687,8 @@ export function setupClaudeSessionHandlers(_mainWindow: BrowserWindow): void {
     stopSession(sessionId)
   })
 
-  ipcMain.handle('claude:isAvailable', () => {
-    return checkClaudeAvailability()
+  ipcMain.handle('claude:isAvailable', async () => {
+    return await checkClaudeAvailability()
   })
 }
 
