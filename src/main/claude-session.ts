@@ -27,6 +27,7 @@ interface ActiveSession {
   process: ChildProcess
   readline: ReadlineInterface
   sessionId: string
+  didEmitResult: boolean
 }
 
 // ── State ──────────────────────────────────────────────────────────────
@@ -394,7 +395,12 @@ function startSession(options: ClaudeSessionOptions): string {
 
   const rl = createInterface({ input: proc.stdout! })
 
-  const session: ActiveSession = { process: proc, readline: rl, sessionId }
+  const session: ActiveSession = {
+    process: proc,
+    readline: rl,
+    sessionId,
+    didEmitResult: false,
+  }
   activeSessions.set(sessionId, session)
 
   // Parse each JSONL line from stdout
@@ -404,6 +410,9 @@ function startSession(options: ClaudeSessionOptions): string {
 
     const events = parseStreamLine(sessionId, trimmed)
     for (const event of events) {
+      if (event.type === 'result') {
+        session.didEmitResult = true
+      }
       emitEvent(event)
     }
   })
@@ -438,16 +447,18 @@ function startSession(options: ClaudeSessionOptions): string {
       })
     }
 
-    // Always send a result event so the UI knows the session ended
-    emitEvent({
-      sessionId,
-      type: 'result',
-      data: {
-        result: '',
-        is_error: code !== 0,
-        session_id: sessionId,
-      },
-    })
+    // If stream output didn't include a terminal result, emit one on exit.
+    if (!session.didEmitResult) {
+      emitEvent({
+        sessionId,
+        type: 'result',
+        data: {
+          result: '',
+          is_error: code !== 0,
+          session_id: sessionId,
+        },
+      })
+    }
 
     activeSessions.delete(sessionId)
   })
