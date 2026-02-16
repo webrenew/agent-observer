@@ -19,6 +19,6 @@ export const SITE_NAME = "Agent Observer";
 export const SITE_TITLE = "Agent Observer — Mission Control for Your AI Agents";
 export const SITE_DESCRIPTION =
   "Observe, debug, and manage every AI agent across your tools. Real-time dashboards, traces, and alerts in one workspace.";
-export const SITE_REPO_URL = "https://github.com/webrenew/agent-space";
+export const SITE_REPO_URL = "https://github.com/webrenew/agent-observer";
 export const SITE_RELEASES_URL = `${SITE_REPO_URL}/releases/latest`;
 export const SITE_OG_IMAGE = "/opengraph.png";

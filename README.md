@@ -73,4 +73,4 @@ pnpm -C web dev
 
 ## License
 
-ISC License. See [`LICENSE`](./LICENSE).
+MIT License. See [`LICENSE`](./LICENSE).
