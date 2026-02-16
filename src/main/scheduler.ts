@@ -70,6 +70,8 @@ const SCHEDULER_DIR = path.join(os.homedir(), '.agent-observer')
 const SCHEDULER_FILE = path.join(SCHEDULER_DIR, 'schedules.json')
 const SCHEDULER_MAX_SCAN_MINUTES = 366 * 24 * 60
 const SCHEDULER_TICK_MS = 10_000
+const SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS = 30 * 60 * 1000
+const SCHEDULER_FORCE_KILL_TIMEOUT_MS = 10_000
 const INVALID_CRON_ERROR_PREFIX = 'Invalid cron expression:'
 
 let handlersRegistered = false
@@ -80,6 +82,20 @@ const runtimeByTaskId = new Map<string, SchedulerTaskRuntime>()
 const runningProcessByTaskId = new Map<string, ChildProcess>()
 const cronParseCache = new Map<string, ParsedCron>()
 const loadValidationErrorsByTaskId = new Map<string, string>()
+
+function resolveSchedulerRunMaxRuntimeMs(): number {
+  const raw = process.env.AGENT_SPACE_SCHEDULER_MAX_RUNTIME_MS
+  if (!raw) return SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    logMainEvent('scheduler.run.invalid_timeout_config', {
+      rawValue: raw,
+      fallbackMs: SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS,
+    }, 'warn')
+    return SCHEDULER_RUN_DEFAULT_MAX_RUNTIME_MS
+  }
+  return parsed
+}
 
 function createRuntime(): SchedulerTaskRuntime {
   return {
@@ -578,6 +594,58 @@ async function runTask(task: SchedulerTask, trigger: SchedulerRunTrigger): Promi
   const rl = createInterface({ input: proc.stdout! })
   let stderr = ''
   let resultError: string | null = null
+  let forceKillTimer: NodeJS.Timeout | null = null
+
+  const clearForceKillTimer = (): void => {
+    if (!forceKillTimer) return
+    clearTimeout(forceKillTimer)
+    forceKillTimer = null
+  }
+
+  const maxRuntimeMs = resolveSchedulerRunMaxRuntimeMs()
+  const runtimeTimer = setTimeout(() => {
+    if (proc.exitCode !== null || proc.signalCode !== null) return
+    const timeoutSeconds = Math.max(1, Math.round(maxRuntimeMs / 1000))
+    resultError = `Scheduled run timed out after ${timeoutSeconds}s`
+    logMainEvent('scheduler.run.timeout', {
+      taskId: task.id,
+      taskName: task.name,
+      trigger,
+      maxRuntimeMs,
+    }, 'warn')
+
+    try {
+      proc.kill('SIGTERM')
+    } catch (err) {
+      logMainError('scheduler.run.timeout_sigterm_failed', err, {
+        taskId: task.id,
+        taskName: task.name,
+        trigger,
+      })
+    }
+
+    forceKillTimer = setTimeout(() => {
+      try {
+        if (proc.exitCode !== null || proc.signalCode !== null) return
+        proc.kill('SIGKILL')
+        logMainEvent('scheduler.run.force_kill', {
+          taskId: task.id,
+          taskName: task.name,
+          trigger,
+          reason: 'timeout',
+        }, 'warn')
+      } catch (err) {
+        logMainError('scheduler.run.force_kill_failed', err, {
+          taskId: task.id,
+          taskName: task.name,
+          trigger,
+          reason: 'timeout',
+        })
+      } finally {
+        clearForceKillTimer()
+      }
+    }, SCHEDULER_FORCE_KILL_TIMEOUT_MS)
+  }, maxRuntimeMs)
 
   rl.on('line', (line) => {
     const trimmed = line.trim()
@@ -606,6 +674,8 @@ async function runTask(task: SchedulerTask, trigger: SchedulerRunTrigger): Promi
 
   await new Promise<void>((resolve) => {
     proc.on('exit', (code) => {
+      clearTimeout(runtimeTimer)
+      clearForceKillTimer()
       rl.close()
       runningProcessByTaskId.delete(task.id)
 
@@ -643,6 +713,8 @@ async function runTask(task: SchedulerTask, trigger: SchedulerRunTrigger): Promi
     })
 
     proc.on('error', (err) => {
+      clearTimeout(runtimeTimer)
+      clearForceKillTimer()
       rl.close()
       runningProcessByTaskId.delete(task.id)
       const completedAt = Date.now()
