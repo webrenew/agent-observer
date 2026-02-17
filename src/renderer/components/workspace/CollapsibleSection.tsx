@@ -30,7 +30,7 @@ export function CollapsibleSection({ title, children, defaultOpen = true, fill =
       </div>
       <div
         className={`section-content ${isOpen ? '' : 'collapsed'}`}
-        style={fill && isOpen ? { flex: 1, minHeight: 0, overflow: 'hidden' } : undefined}
+        style={fill && isOpen ? { flex: 1, minHeight: 0, overflow: 'hidden', maxHeight: 'none' } : undefined}
       >
         {children}
       </div>

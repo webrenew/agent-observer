@@ -48,6 +48,10 @@ const ACTION_DURATION_MS: Record<CelebrationType, number> = {
   fax_blast: 3200,
 }
 
+const ACTION_REWARD_POINTS: Partial<Record<CelebrationType, number>> = {
+  pizza_party: 10,
+}
+
 export function CelebrationDeck() {
   const agents = useAgentStore((s) => s.agents)
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId)
@@ -68,6 +72,7 @@ export function CelebrationDeck() {
       return
     }
 
+    const rewardPoints = ACTION_REWARD_POINTS[action.id] ?? 0
     const baseTs = Date.now()
     for (let index = 0; index < targets.length; index += 1) {
       const agent = targets[index]
@@ -90,13 +95,25 @@ export function CelebrationDeck() {
         type: 'status_change',
         description: `Manual celebration: ${action.label}`,
       })
+      if (rewardPoints > 0) {
+        addEvent({
+          agentId: agent.id,
+          agentName: agent.name,
+          type: 'status_change',
+          description: `Rewarded +${rewardPoints} morale (${action.label})`,
+        })
+      }
     }
 
     addToast({
       type: 'success',
-      message: selectedPrimaryAgent
-        ? `${selectedPrimaryAgent.name}: ${action.label}`
-        : `${action.label} launched for ${targets.length} agents`,
+      message: rewardPoints > 0
+        ? (selectedPrimaryAgent
+          ? `${selectedPrimaryAgent.name}: ${action.label} • rewarded +${rewardPoints}`
+          : `${action.label} launched for ${targets.length} agents • rewarded +${rewardPoints}`)
+        : (selectedPrimaryAgent
+          ? `${selectedPrimaryAgent.name}: ${action.label}`
+          : `${action.label} launched for ${targets.length} agents`),
     })
   }, [addEvent, addToast, primaryAgents, selectedPrimaryAgent, updateAgent])
 

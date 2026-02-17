@@ -25,6 +25,7 @@ import {
 } from '../../hooks/useHotkeys'
 
 const WORKSPACE_LAYOUT_STATE_KEY = 'agent-observer:workspaceLayoutState'
+const LAYOUT_DIVIDER_SIZE = 5
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -243,7 +244,8 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
     setLayout((prev) => {
       const next = deepCloneLayout(prev)
       const containerWidth = containerRef.current?.clientWidth ?? 1000
-      const deltaRatio = deltaX / containerWidth
+      const availableWidth = Math.max(1, containerWidth - Math.max(0, next.length - 1) * LAYOUT_DIVIDER_SIZE)
+      const deltaRatio = deltaX / availableWidth
       const left = next[dividerIndex].width + deltaRatio
       const right = next[dividerIndex + 1].width - deltaRatio
       if (left < 0.15 || right < 0.15) return prev
@@ -266,7 +268,7 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
       if (topHeight === -1 || bottomHeight === -1) {
         if (!columnHeight) return prev
         const dividerCount = column.rows.length - 1
-        const dividerHeight = 5
+        const dividerHeight = LAYOUT_DIVIDER_SIZE
         const fixedTotal = column.rows.reduce((sum, row) => sum + (row.height === -1 ? 0 : row.height), 0)
         const flexHeight = Math.max(PANEL_MIN_HEIGHT, columnHeight - fixedTotal - dividerCount * dividerHeight)
 
@@ -291,11 +293,13 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
   }, [])
 
   const handleSlotResize = useCallback((columnIndex: number, rowIndex: number, dividerIndex: number, deltaX: number) => {
+    const columnElement = containerRef.current?.querySelector<HTMLElement>(`[data-col="${columnIndex}"]`)
+    const columnWidth = columnElement?.clientWidth ?? 0
+
     setLayout((prev) => {
+      if (!columnWidth) return prev
       const next = deepCloneLayout(prev)
       const row = next[columnIndex].rows[rowIndex]
-      const containerWidth = containerRef.current?.clientWidth ?? 1000
-      const columnWidth = containerWidth * next[columnIndex].width
       const deltaRatio = deltaX / columnWidth
       const left = row.slotWidths[dividerIndex] + deltaRatio
       const right = row.slotWidths[dividerIndex + 1] - deltaRatio

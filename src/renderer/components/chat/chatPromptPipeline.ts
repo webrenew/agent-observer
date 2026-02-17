@@ -1,4 +1,4 @@
-import type { WorkspaceContextSnapshot } from '../../types'
+import type { ChatRunReward, WorkspaceContextSnapshot } from '../../types'
 import { buildWorkspaceContextPrompt } from '../../lib/workspaceContext'
 
 const BINARY_EXTENSIONS = new Set([
@@ -47,6 +47,7 @@ export interface PrepareChatPromptInput {
   workingDirectory: string
   mentions?: string[]
   files?: File[]
+  officeContext?: OfficePromptContext
 }
 
 export interface PrepareChatPromptResult {
@@ -66,6 +67,17 @@ export interface PrepareChatPromptDependencies {
     mentions: string[]
   ) => Promise<MentionResolutionResult>
   readReferencedFile: (path: string) => Promise<{ content: string; truncated?: boolean }>
+}
+
+export interface OfficeRewardContext {
+  rewardScore: number
+  status: ChatRunReward['status']
+  notes: string[]
+}
+
+export interface OfficePromptContext {
+  recentFeedback: string[]
+  latestReward: OfficeRewardContext | null
 }
 
 export function normalizeMentionPath(value: string): string {
@@ -315,6 +327,34 @@ export function applyWorkspaceContextStage(
   return `${prompt}\n\n${buildWorkspaceContextPrompt(workspaceSnapshot)}`
 }
 
+export function applyOfficeContextStage(
+  prompt: string,
+  officeContext?: OfficePromptContext
+): string {
+  const lines: string[] = [
+    '[Office collaboration context]',
+    'You are in the shared office with the user right now.',
+    'The user can watch your activity live and can give direct in-office feedback.',
+    'Treat office feedback as immediate coaching and adapt your behavior accordingly.',
+  ]
+
+  if (officeContext?.latestReward) {
+    lines.push(`latest_office_reward: ${officeContext.latestReward.rewardScore} (${officeContext.latestReward.status})`)
+    if (officeContext.latestReward.notes.length > 0) {
+      lines.push(`latest_reward_notes: ${officeContext.latestReward.notes.slice(0, 3).join(' | ')}`)
+    }
+  }
+
+  if (officeContext && officeContext.recentFeedback.length > 0) {
+    lines.push('recent_office_feedback:')
+    for (const feedback of officeContext.recentFeedback.slice(0, 6)) {
+      lines.push(`- ${feedback}`)
+    }
+  }
+
+  return `${prompt}\n\n${lines.join('\n')}`
+}
+
 export async function prepareChatPrompt(
   input: PrepareChatPromptInput,
   deps: PrepareChatPromptDependencies
@@ -334,7 +374,8 @@ export async function prepareChatPrompt(
     files: input.files,
   })
   const withReferenceNotes = applyReferenceNotesStage(withAttachments, mentionStage.referenceNotes)
-  const prompt = applyWorkspaceContextStage(withReferenceNotes, workspaceSnapshot)
+  const withWorkspaceContext = applyWorkspaceContextStage(withReferenceNotes, workspaceSnapshot)
+  const prompt = applyOfficeContextStage(withWorkspaceContext, input.officeContext)
 
   return {
     prompt,

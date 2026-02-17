@@ -75,8 +75,8 @@ export function ActivityPanel() {
   const events = useAgentStore((s) => s.events)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Show most recent first, take last 20
-  const displayEvents = useMemo(() => [...events].reverse().slice(0, 20), [events])
+  // Show most recent first; store already caps overall history size.
+  const displayEvents = useMemo(() => [...events].reverse(), [events])
 
   useEffect(() => {
     const el = scrollRef.current
@@ -84,8 +84,17 @@ export function ActivityPanel() {
   }, [events.length])
 
   return (
-    <CollapsibleSection title="ACTIVITY">
-      <div ref={scrollRef} style={{ padding: '0 16px 10px', overflow: 'auto', maxHeight: '100%' }}>
+    <CollapsibleSection title="ACTIVITY" fill>
+      <div
+        ref={scrollRef}
+        style={{
+          padding: '0 16px 10px',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          height: '100%',
+          minHeight: 0,
+        }}
+      >
         {displayEvents.length === 0 && (
           <div style={{ color: '#595653', fontSize: 12, padding: '8px 0' }}>
             No activity yet

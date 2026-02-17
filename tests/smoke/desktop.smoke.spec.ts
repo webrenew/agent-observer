@@ -160,6 +160,52 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
 
     await expect(mainWindow.locator('.slot-tab', { hasText: 'CHAT' }).first()).toBeVisible()
 
+    // Regression check: in fullscreen/right-edge layouts, the right-most edge
+    // should still hit the right-column row divider so ACTIVITY can expand.
+    const rightEdgeDivider = await mainWindow.evaluate(() => {
+      const divider = document.querySelector('[data-col="2"] .panel-divider') as HTMLElement | null
+      const topRow = document.querySelector('[data-col="2"] > div:first-child') as HTMLElement | null
+      const rect = divider?.getBoundingClientRect()
+      const topRect = topRow?.getBoundingClientRect()
+      if (!rect || !topRect) return null
+      return {
+        innerWidth: window.innerWidth,
+        dividerY: rect.y,
+        dividerHeight: rect.height,
+        dividerRight: rect.right,
+        topRowHeight: topRect.height,
+      }
+    })
+    expect(rightEdgeDivider).not.toBeNull()
+    expect(rightEdgeDivider!.dividerRight).toBeGreaterThanOrEqual(rightEdgeDivider!.innerWidth - 2)
+
+    const edgeDragX = rightEdgeDivider!.innerWidth - 2
+    const edgeDragY = rightEdgeDivider!.dividerY + rightEdgeDivider!.dividerHeight / 2
+    await mainWindow.mouse.move(edgeDragX, edgeDragY)
+    await mainWindow.mouse.down()
+    await mainWindow.mouse.move(edgeDragX, edgeDragY - 80, { steps: 10 })
+    await mainWindow.mouse.up()
+
+    const topRowAfterEdgeDrag = await mainWindow.evaluate(() => {
+      const topRow = document.querySelector('[data-col="2"] > div:first-child') as HTMLElement | null
+      return topRow?.getBoundingClientRect().height ?? -1
+    })
+    expect(Math.abs(topRowAfterEdgeDrag - rightEdgeDivider!.topRowHeight)).toBeGreaterThan(5)
+
+    // Restore roughly to avoid impacting subsequent smoke steps.
+    const dividerAfterEdgeDrag = await mainWindow.evaluate(() => {
+      const divider = document.querySelector('[data-col="2"] .panel-divider') as HTMLElement | null
+      const rect = divider?.getBoundingClientRect()
+      if (!rect) return null
+      return { y: rect.y, height: rect.height }
+    })
+    expect(dividerAfterEdgeDrag).not.toBeNull()
+    const restoreDragY = dividerAfterEdgeDrag!.y + dividerAfterEdgeDrag!.height / 2
+    await mainWindow.mouse.move(edgeDragX, restoreDragY)
+    await mainWindow.mouse.down()
+    await mainWindow.mouse.move(edgeDragX, restoreDragY + 80, { steps: 10 })
+    await mainWindow.mouse.up()
+
     // Regression check: malformed persisted cron tasks should be surfaced as
     // actionable errors and auto-disabled on load.
     const schedulerTasks = await mainWindow.evaluate(async () => {

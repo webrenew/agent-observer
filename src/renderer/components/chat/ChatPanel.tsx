@@ -20,6 +20,7 @@ import {
 import { ChatMessageBubble } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import {
+  type OfficePromptContext,
   parseSlashCommandInput,
   prepareChatPrompt,
   resolveMentionedFilesWithSearch,
@@ -175,6 +176,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const getNextDeskIndex = useAgentStore((s) => s.getNextDeskIndex)
   const addEvent = useAgentStore((s) => s.addEvent)
   const addToast = useAgentStore((s) => s.addToast)
+  const events = useAgentStore((s) => s.events)
   const updateChatSession = useAgentStore((s) => s.updateChatSession)
   const chatSession = useAgentStore(
     (s) => s.chatSessions.find((session) => session.id === chatSessionId) ?? null
@@ -206,6 +208,34 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     }
     return null
   }, [chatSessionId, rewards])
+
+  const officePromptContext = useMemo<OfficePromptContext>(() => {
+    const targetAgentId = chatSession?.agentId ?? null
+    const recentFeedback = [...events]
+      .reverse()
+      .filter((event) => event.type === 'status_change')
+      .filter((event) => {
+        if (targetAgentId && event.agentId !== targetAgentId) return false
+        return (
+          event.description.startsWith('Manual celebration:')
+          || event.description.startsWith('Rewarded +')
+          || event.description.startsWith('Reward ')
+        )
+      })
+      .slice(0, 6)
+      .map((event) => event.description)
+
+    return {
+      recentFeedback,
+      latestReward: latestRewardForChat
+        ? {
+          rewardScore: latestRewardForChat.rewardScore,
+          status: latestRewardForChat.status,
+          notes: latestRewardForChat.notes,
+        }
+        : null,
+    }
+  }, [chatSession?.agentId, events, latestRewardForChat])
 
   const setActiveClaudeSession = useCallback((sessionId: string | null) => {
     activeClaudeSessionIdRef.current = sessionId
@@ -835,6 +865,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
           workingDirectory,
           files,
           mentions,
+          officeContext: officePromptContext,
         },
         {
           getWorkspaceSnapshot: (directory) => window.electronAPI.context.getWorkspaceSnapshot(directory),
@@ -988,6 +1019,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       setChatContextSnapshot,
       updateAgent,
       upsertWorkspaceSnapshot,
+      officePromptContext,
       yoloMode,
     ]
   )

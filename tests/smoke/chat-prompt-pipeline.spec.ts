@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { WorkspaceContextSnapshot } from '../../src/renderer/types'
 import {
   applyAttachmentFilesStage,
+  applyOfficeContextStage,
   applyMentionReferencesStage,
   loadWorkspaceSnapshotStage,
   parseSlashCommandInput,
@@ -106,8 +107,27 @@ test('prepareChatPrompt runs staged pipeline and injects workspace context', asy
   expect(prepared.prompt).toContain('Referenced files via @:')
   expect(prepared.prompt).toContain('Attached files:')
   expect(prepared.prompt).toContain('[Workspace context snapshot]')
+  expect(prepared.prompt).toContain('[Office collaboration context]')
+  expect(prepared.prompt).toContain('You are in the shared office with the user right now.')
   expect(prepared.prompt).toContain('git_branch: feature/pipeline')
   expect(prepared.mentionTokens).toEqual(['README'])
+})
+
+test('applyOfficeContextStage includes reward and feedback injection', () => {
+  const prompt = applyOfficeContextStage('Base prompt', {
+    recentFeedback: ['Manual celebration: Pizza Party', 'Rewarded +10 morale (Pizza Party)'],
+    latestReward: {
+      rewardScore: 87,
+      status: 'success',
+      notes: ['Used 3 context files', 'Low unresolved mentions'],
+    },
+  })
+
+  expect(prompt).toContain('[Office collaboration context]')
+  expect(prompt).toContain('latest_office_reward: 87 (success)')
+  expect(prompt).toContain('recent_office_feedback:')
+  expect(prompt).toContain('- Manual celebration: Pizza Party')
+  expect(prompt).toContain('- Rewarded +10 morale (Pizza Party)')
 })
 
 test('loadWorkspaceSnapshotStage swallows snapshot errors and reports them via callback', async () => {

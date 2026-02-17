@@ -6,7 +6,7 @@ export function WorkspaceLayout() {
   const controller = useWorkspaceLayoutController()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0E0E0D', paddingRight: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0E0E0D' }}>
       <WorkspaceMenuBar
         visiblePanels={controller.visiblePanels}
         onTogglePanel={controller.handleTogglePanel}

@@ -268,10 +268,11 @@ export function WorkspaceGridRenderer({
           <div
             data-col={columnIndex}
             style={{
-              flex: `0 0 ${column.width * 100}%`,
+              flex: `${column.width} 1 0`,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
+              minWidth: 0,
             }}
           >
             {column.rows.map((row, rowIndex) => {
@@ -298,12 +299,13 @@ export function WorkspaceGridRenderer({
                             onDragOver={(event) => onDragOver(event, columnIndex, rowIndex, slotIndex)}
                             onDrop={onDrop}
                             style={{
-                              flex: `0 0 ${(row.slotWidths[slotIndex] ?? 1 / row.slots.length) * 100}%`,
+                              flex: `${row.slotWidths[slotIndex] ?? 1 / row.slots.length} 1 0`,
                               display: 'flex',
                               flexDirection: 'column',
                               overflow: 'hidden',
                               position: 'relative',
                               height: '100%',
+                              minWidth: 0,
                             }}
                           >
                             <SlotTabBar
