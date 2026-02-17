@@ -29,25 +29,38 @@ jobs:
             echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout
+      - name: Checkout tag
         uses: actions/checkout@v6
         with:
           ref: ${{ steps.target_tag.outputs.value }}
-          fetch-depth: 0
 
-      - name: Backfill build assets from main
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Checkout build assets from main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: __main
+          sparse-checkout: resources
+          sparse-checkout-cone-mode: true
+
+      - name: Ensure icon exists
         run: |
-          if [ ! -f build/icon.icns ]; then
-            echo "build/icon.icns missing at tag — downloading from main"
-            mkdir -p build
-            gh api repos/${{ github.repository }}/contents/build/icon.icns?ref=main \
-              --jq '.download_url' | xargs curl -sL -o build/icon.icns
+          # New tags use resources/icon.icns; old tags use build/icon.icns
+          ICON_SRC="__main/resources/icon.icns"
+          if [ ! -f "$ICON_SRC" ]; then
+            echo "::error::resources/icon.icns not found on main"
+            exit 1
           fi
+          # Place icon where this tag's electron-builder config expects it
+          CONFIGURED_ICON=$(node -p "try{require('./package.json').build.mac.icon}catch{''}")
+          if [ -z "$CONFIGURED_ICON" ]; then
+            CONFIGURED_ICON="resources/icon.icns"
+          fi
+          mkdir -p "$(dirname "$CONFIGURED_ICON")"
+          cp "$ICON_SRC" "$CONFIGURED_ICON"
+          echo "Placed icon at $CONFIGURED_ICON"
+          rm -rf __main
 
       - name: Derive version from tag
-        id: version
         env:
           TAG: ${{ steps.target_tag.outputs.value }}
         run: |

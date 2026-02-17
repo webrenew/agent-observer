@@ -89,7 +89,7 @@
     "productName": "Agent Observer",
     "mac": {
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.icns",
+      "icon": "resources/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -107,7 +107,7 @@
     },
     "dmg": {
       "title": "Agent Observer",
-      "icon": "build/icon.icns",
+      "icon": "resources/icon.icns",
       "contents": [
         {
           "x": 130,
