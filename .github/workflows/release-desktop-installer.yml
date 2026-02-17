@@ -36,11 +36,14 @@ jobs:
           fetch-depth: 0
 
       - name: Backfill build assets from main
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ ! -f build/icon.icns ]; then
-            echo "build/icon.icns missing at tag — fetching from main"
-            git fetch origin main
-            git checkout FETCH_HEAD -- build/icon.icns
+            echo "build/icon.icns missing at tag — downloading from main"
+            mkdir -p build
+            gh api repos/${{ github.repository }}/contents/build/icon.icns?ref=main \
+              --jq '.download_url' | xargs curl -sL -o build/icon.icns
           fi
 
       - name: Derive version from tag
