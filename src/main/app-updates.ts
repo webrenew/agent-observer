@@ -13,10 +13,18 @@ let handlersRegistered = false
 let cachedStatus: AppUpdateStatusResult | null = null
 let cacheTimestampMs = 0
 let pendingStatusPromise: Promise<AppUpdateStatusResult> | null = null
-let liveStatus: AppUpdateStatusResult = baseStatus(app.getVersion())
+let liveStatus: AppUpdateStatusResult = baseStatus(getAppVersion())
 let updaterInitialized = false
 let updaterCheckStarted = false
 let updaterCheckPromise: Promise<void> | null = null
+
+function getAppVersion(): string {
+  try {
+    return typeof app?.getVersion === 'function' ? app.getVersion() : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
 
 function parseSemverTriplet(version: string): [number, number, number] | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(version.trim())
@@ -134,7 +142,7 @@ function normalizeUpdateError(err: unknown): string {
 }
 
 async function checkForUpdates(): Promise<AppUpdateStatusResult> {
-  const currentVersion = app.getVersion()
+  const currentVersion = getAppVersion()
   const fallback = baseStatus(currentVersion)
 
   try {
@@ -265,8 +273,8 @@ function ensureAutoUpdaterCheckStarted(): void {
         return
       }
       const hasUpdate = __testOnlyIsUpdateAvailable(
-        app.getVersion(),
-        pickVersion(result.updateInfo) ?? app.getVersion()
+        getAppVersion(),
+        pickVersion(result.updateInfo) ?? getAppVersion()
       )
       if (!hasUpdate) {
         setStatusFromUpdateInfo(result.updateInfo, {
