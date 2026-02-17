@@ -18,6 +18,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   smoke tests under `c8` and publishes coverage artifacts/summary.
 - App now checks GitHub releases on startup and shows an in-app update banner
   when a newer version is available.
+- Packaged desktop builds now stream updater status and show a one-click
+  "Install update and restart" toast when a downloaded update is ready.
 - Added a release workflow that builds macOS `.dmg` installers and uploads them
   to GitHub releases on publish.
 - Editor now supports staged image proposal diffs with apply/discard, while
@@ -31,6 +33,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Web simulation now preserves manual menu-driven agent task updates briefly.
 - Website installer flows now explicitly call out macOS (Apple Silicon), and
   `/download` now scans recent releases for the newest available `.dmg`.
+- Release automation now uploads `latest-mac.yml` and `.dmg.blockmap` metadata
+  assets required by in-app auto-updates.
 
 ## [1.1.0] - 2026-02-15
 

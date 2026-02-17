@@ -92,9 +92,20 @@ jobs:
         run: |
           ls -lah release
           test -n "$(find release -maxdepth 1 -name '*.dmg' -print -quit)"
+          test -f "release/latest-mac.yml"
+          test -n "$(find release -maxdepth 1 -name '*.dmg.blockmap' -print -quit)"
 
-      - name: Upload installer to release
+      - name: Upload installer and update metadata to release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ steps.target_tag.outputs.value }}" release/*.dmg --clobber
+          set -euo pipefail
+          ASSETS=()
+          while IFS= read -r -d '' file; do
+            ASSETS+=("$file")
+          done < <(find release -maxdepth 1 \( -name '*.dmg' -o -name '*.dmg.blockmap' -o -name 'latest-mac.yml' \) -print0)
+          if [ "${#ASSETS[@]}" -eq 0 ]; then
+            echo "::error::No release assets found to upload"
+            exit 1
+          fi
+          gh release upload "${{ steps.target_tag.outputs.value }}" "${ASSETS[@]}" --clobber

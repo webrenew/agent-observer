@@ -1,8 +1,11 @@
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
+import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater'
 import { IPC_CHANNELS, type AppUpdateStatusResult } from '../shared/electron-api'
 
 const RELEASE_API_URL = 'https://api.github.com/repos/webrenew/agent-observer/releases/latest'
 const RELEASE_FALLBACK_URL = 'https://github.com/webrenew/agent-observer/releases/latest'
+const GITHUB_OWNER = 'webrenew'
+const GITHUB_REPO = 'agent-observer'
 const UPDATE_CHECK_TIMEOUT_MS = 7_000
 const UPDATE_CHECK_CACHE_MS = 30 * 60 * 1_000
 
@@ -10,6 +13,10 @@ let handlersRegistered = false
 let cachedStatus: AppUpdateStatusResult | null = null
 let cacheTimestampMs = 0
 let pendingStatusPromise: Promise<AppUpdateStatusResult> | null = null
+let liveStatus: AppUpdateStatusResult = baseStatus(app.getVersion())
+let updaterInitialized = false
+let updaterCheckStarted = false
+let updaterCheckPromise: Promise<void> | null = null
 
 function parseSemverTriplet(version: string): [number, number, number] | null {
   const match = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(version.trim())
@@ -44,7 +51,43 @@ function baseStatus(currentVersion: string): AppUpdateStatusResult {
     releaseUrl: RELEASE_FALLBACK_URL,
     checkedAt: Date.now(),
     error: null,
+    phase: 'idle',
+    downloadPercent: null,
+    canInstall: false,
   }
+}
+
+function publishStatus(patch: Partial<AppUpdateStatusResult>): AppUpdateStatusResult {
+  liveStatus = {
+    ...liveStatus,
+    ...patch,
+    checkedAt: patch.checkedAt ?? Date.now(),
+  }
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue
+    win.webContents.send(IPC_CHANNELS.updates.status, liveStatus)
+  }
+  return liveStatus
+}
+
+function pickVersion(info: UpdateInfo | null | undefined): string | null {
+  if (!info) return null
+  const version = typeof info.version === 'string' ? info.version.trim() : ''
+  if (version.length > 0) return version
+  const releaseName = typeof info.releaseName === 'string' ? info.releaseName.trim() : ''
+  return releaseName.length > 0 ? releaseName : null
+}
+
+function setStatusFromUpdateInfo(
+  info: UpdateInfo | null | undefined,
+  patch: Partial<AppUpdateStatusResult>
+): AppUpdateStatusResult {
+  const latestVersion = pickVersion(info)
+  return publishStatus({
+    latestVersion: latestVersion ?? liveStatus.latestVersion,
+    releaseUrl: RELEASE_FALLBACK_URL,
+    ...patch,
+  })
 }
 
 async function fetchLatestRelease(): Promise<{ latestVersion: string; releaseUrl: string }> {
@@ -102,17 +145,19 @@ async function checkForUpdates(): Promise<AppUpdateStatusResult> {
       releaseUrl: latest.releaseUrl,
       updateAvailable: __testOnlyIsUpdateAvailable(currentVersion, latest.latestVersion),
       checkedAt: Date.now(),
+      phase: __testOnlyIsUpdateAvailable(currentVersion, latest.latestVersion) ? 'available' : 'idle',
     }
   } catch (err) {
     return {
       ...fallback,
       error: normalizeUpdateError(err),
       checkedAt: Date.now(),
+      phase: 'error',
     }
   }
 }
 
-async function resolveUpdateStatus(): Promise<AppUpdateStatusResult> {
+async function resolveFallbackUpdateStatus(): Promise<AppUpdateStatusResult> {
   const now = Date.now()
   if (cachedStatus && (now - cacheTimestampMs) < UPDATE_CHECK_CACHE_MS) {
     return cachedStatus
@@ -133,11 +178,151 @@ async function resolveUpdateStatus(): Promise<AppUpdateStatusResult> {
   return pendingStatusPromise
 }
 
+function initializeAutoUpdaterIfNeeded(): void {
+  if (updaterInitialized) return
+  updaterInitialized = true
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.allowPrerelease = false
+  autoUpdater.allowDowngrade = false
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+  })
+
+  autoUpdater.on('checking-for-update', () => {
+    publishStatus({
+      phase: 'checking',
+      error: null,
+      canInstall: false,
+      downloadPercent: null,
+    })
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    setStatusFromUpdateInfo(info, {
+      phase: 'downloading',
+      updateAvailable: true,
+      error: null,
+      canInstall: false,
+      downloadPercent: 0,
+    })
+  })
+
+  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+    publishStatus({
+      phase: 'downloading',
+      updateAvailable: true,
+      error: null,
+      canInstall: false,
+      downloadPercent: Number.isFinite(progress.percent) ? progress.percent : null,
+    })
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    setStatusFromUpdateInfo(info, {
+      phase: 'downloaded',
+      updateAvailable: true,
+      error: null,
+      canInstall: true,
+      downloadPercent: 100,
+    })
+  })
+
+  autoUpdater.on('update-not-available', (info) => {
+    setStatusFromUpdateInfo(info, {
+      phase: 'idle',
+      updateAvailable: false,
+      error: null,
+      canInstall: false,
+      downloadPercent: null,
+    })
+  })
+
+  autoUpdater.on('error', (err) => {
+    publishStatus({
+      phase: 'error',
+      error: normalizeUpdateError(err),
+      canInstall: false,
+      downloadPercent: null,
+    })
+  })
+}
+
+function ensureAutoUpdaterCheckStarted(): void {
+  if (updaterCheckStarted || updaterCheckPromise) return
+  updaterCheckStarted = true
+  updaterCheckPromise = autoUpdater.checkForUpdates()
+    .then((result) => {
+      if (!result?.updateInfo) {
+        publishStatus({
+          phase: 'idle',
+          updateAvailable: false,
+          canInstall: false,
+        })
+        return
+      }
+      const hasUpdate = __testOnlyIsUpdateAvailable(
+        app.getVersion(),
+        pickVersion(result.updateInfo) ?? app.getVersion()
+      )
+      if (!hasUpdate) {
+        setStatusFromUpdateInfo(result.updateInfo, {
+          phase: 'idle',
+          updateAvailable: false,
+          error: null,
+          canInstall: false,
+          downloadPercent: null,
+        })
+      }
+    })
+    .catch((err) => {
+      updaterCheckStarted = false
+      publishStatus({
+        phase: 'error',
+        error: normalizeUpdateError(err),
+        canInstall: false,
+      })
+    })
+    .finally(() => {
+      updaterCheckPromise = null
+    })
+}
+
+async function resolveUpdateStatus(): Promise<AppUpdateStatusResult> {
+  if (app.isPackaged) {
+    initializeAutoUpdaterIfNeeded()
+    ensureAutoUpdaterCheckStarted()
+    return liveStatus
+  }
+
+  const fallback = await resolveFallbackUpdateStatus()
+  liveStatus = fallback
+  return fallback
+}
+
 export function setupUpdateHandlers(): void {
   if (handlersRegistered) return
   handlersRegistered = true
 
   ipcMain.handle(IPC_CHANNELS.updates.getStatus, async () => {
     return resolveUpdateStatus()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.updates.installAndRestart, async () => {
+    if (!app.isPackaged || !liveStatus.canInstall) return false
+    try {
+      autoUpdater.quitAndInstall(false, true)
+      return true
+    } catch (err) {
+      publishStatus({
+        phase: 'error',
+        error: normalizeUpdateError(err),
+        canInstall: false,
+      })
+      return false
+    }
   })
 }

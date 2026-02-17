@@ -85,6 +85,8 @@ export const IPC_CHANNELS = {
   },
   updates: {
     getStatus: 'updates:getStatus',
+    installAndRestart: 'updates:installAndRestart',
+    status: 'updates:status',
   },
   scheduler: {
     list: 'scheduler:list',
@@ -214,6 +216,9 @@ export interface AppUpdateStatusResult {
   releaseUrl: string
   checkedAt: number
   error: string | null
+  phase: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'
+  downloadPercent: number | null
+  canInstall: boolean
 }
 
 export interface ElectronAPI {
@@ -299,6 +304,8 @@ export interface ElectronAPI {
   }
   updates: {
     getStatus: () => Promise<AppUpdateStatusResult>
+    installAndRestart: () => Promise<boolean>
+    onStatus: (callback: (status: AppUpdateStatusResult) => void) => Unsubscribe
   }
   scheduler: {
     list: () => Promise<SchedulerTask[]>

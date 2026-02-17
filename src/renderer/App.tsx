@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, useMemo, useState } from 'react'
+import { useEffect, lazy, Suspense, useMemo, useState, useCallback } from 'react'
 import { WorkspaceLayout } from './components/workspace/WorkspaceLayout'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstRunOnboarding } from './components/FirstRunOnboarding'
@@ -17,12 +17,6 @@ const LazyHelpPanel = lazy(async () => {
   return { default: mod.HelpPanel }
 })
 
-const UPDATE_DISMISS_KEY_PREFIX = 'agent-observer:update-dismissed:'
-
-function dismissKeyFor(latestVersion: string): string {
-  return `${UPDATE_DISMISS_KEY_PREFIX}${latestVersion}`
-}
-
 export function App() {
   const openSettings = useSettingsStore((s) => s.openSettings)
   const openHelp = useSettingsStore((s) => s.openHelp)
@@ -31,7 +25,8 @@ export function App() {
   const fontFamily = useSettingsStore((s) => s.settings.appearance.fontFamily)
   const fontSize = useSettingsStore((s) => s.settings.appearance.fontSize)
   const claudeProfiles = useSettingsStore((s) => s.settings.claudeProfiles)
-  const [updateNotice, setUpdateNotice] = useState<AppUpdateStatusResult | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatusResult | null>(null)
+  const [installingUpdate, setInstallingUpdate] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -64,16 +59,15 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false
+    const unsubscribe = window.electronAPI.updates.onStatus((status) => {
+      if (cancelled) return
+      setUpdateStatus(status)
+    })
 
     void (async () => {
       try {
         const status = await window.electronAPI.updates.getStatus()
-        if (cancelled || !status.updateAvailable || !status.latestVersion) return
-
-        const dismissed = localStorage.getItem(dismissKeyFor(status.latestVersion)) === 'dismissed'
-        if (dismissed) return
-
-        setUpdateNotice(status)
+        if (!cancelled) setUpdateStatus(status)
       } catch (err) {
         console.warn('[App] update status check failed:', err)
       }
@@ -81,81 +75,81 @@ export function App() {
 
     return () => {
       cancelled = true
+      unsubscribe()
     }
   }, [])
 
   const updateDownloadUrl = useMemo(() => (
-    updateNotice?.releaseUrl || 'https://github.com/webrenew/agent-observer/releases/latest'
-  ), [updateNotice?.releaseUrl])
+    updateStatus?.releaseUrl || 'https://github.com/webrenew/agent-observer/releases/latest'
+  ), [updateStatus?.releaseUrl])
 
-  const dismissUpdateNotice = () => {
-    if (updateNotice?.latestVersion) {
-      localStorage.setItem(dismissKeyFor(updateNotice.latestVersion), 'dismissed')
-    }
-    setUpdateNotice(null)
-  }
+  const handleInstallUpdate = useCallback(() => {
+    if (installingUpdate) return
+    setInstallingUpdate(true)
+    void (async () => {
+      try {
+        const accepted = await window.electronAPI.updates.installAndRestart()
+        if (!accepted) {
+          setInstallingUpdate(false)
+          window.open(updateDownloadUrl, '_blank', 'noopener,noreferrer')
+        }
+      } catch (err) {
+        setInstallingUpdate(false)
+        console.warn('[App] install update failed:', err)
+        window.open(updateDownloadUrl, '_blank', 'noopener,noreferrer')
+      }
+    })()
+  }, [installingUpdate, updateDownloadUrl])
 
   return (
     <div className="w-full h-full" style={{ display: 'flex', flexDirection: 'column' }}>
-      {updateNotice && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            padding: '7px 12px',
-            borderBottom: '1px solid rgba(84, 140, 90, 0.35)',
-            background: 'linear-gradient(90deg, #121613 0%, #141B16 100%)',
-            color: '#d8dfd3',
-            fontSize: 12,
-            lineHeight: 1.4,
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontWeight: 600 }}>Update available</span>
-          <span style={{ color: '#aeb7a6' }}>
-            v{(updateNotice.latestVersion ?? '').replace(/^v/i, '')}
-            {' '}is available (current v{updateNotice.currentVersion.replace(/^v/i, '')}).
-          </span>
-          <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            onClick={() => window.open(updateDownloadUrl, '_blank', 'noopener,noreferrer')}
-            style={{
-              border: '1px solid rgba(84, 140, 90, 0.5)',
-              background: '#1E2920',
-              color: '#d8dfd3',
-              borderRadius: 5,
-              fontSize: 11,
-              padding: '4px 8px',
-              cursor: 'pointer',
-            }}
-          >
-            Update
-          </button>
-          <button
-            type="button"
-            onClick={dismissUpdateNotice}
-            style={{
-              border: '1px solid rgba(89, 86, 83, 0.4)',
-              background: '#121211',
-              color: '#9A9692',
-              borderRadius: 5,
-              fontSize: 11,
-              padding: '4px 8px',
-              cursor: 'pointer',
-            }}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       <div style={{ flex: 1, minHeight: 0 }}>
         <ErrorBoundary fallbackLabel="WorkspaceLayout">
           <WorkspaceLayout />
         </ErrorBoundary>
       </div>
+      {updateStatus?.canInstall ? (
+        <div
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '9px 12px',
+            borderRadius: 8,
+            border: '1px solid rgba(84, 140, 90, 0.45)',
+            background: 'linear-gradient(180deg, rgba(22, 28, 23, 0.95), rgba(12, 16, 13, 0.95))',
+            boxShadow: '0 6px 22px rgba(0,0,0,0.45)',
+            color: '#d8dfd3',
+            fontSize: 12,
+          }}
+        >
+          <span>
+            Update ready{updateStatus.latestVersion ? ` (v${updateStatus.latestVersion.replace(/^v/i, '')})` : ''}.
+          </span>
+          <button
+            type="button"
+            onClick={handleInstallUpdate}
+            disabled={installingUpdate}
+            style={{
+              border: '1px solid rgba(84, 140, 90, 0.6)',
+              background: installingUpdate ? '#2a2f2a' : '#1E2920',
+              color: installingUpdate ? '#9A9692' : '#d8dfd3',
+              borderRadius: 6,
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '6px 10px',
+              cursor: installingUpdate ? 'default' : 'pointer',
+              opacity: installingUpdate ? 0.75 : 1,
+            }}
+          >
+            {installingUpdate ? 'Restarting…' : 'Install update and restart'}
+          </button>
+        </div>
+      ) : null}
       {isSettingsOpen ? (
         <Suspense fallback={null}>
           <LazySettingsPanel />

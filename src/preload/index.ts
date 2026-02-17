@@ -145,6 +145,8 @@ const electronAPI: ElectronAPI = {
   },
   updates: {
     getStatus: invokeFor<ElectronAPI['updates']['getStatus']>(IPC_CHANNELS.updates.getStatus),
+    installAndRestart: invokeFor<ElectronAPI['updates']['installAndRestart']>(IPC_CHANNELS.updates.installAndRestart),
+    onStatus: subscribeFor<SubscriptionCallback<ElectronAPI['updates']['onStatus']>>(IPC_CHANNELS.updates.status),
   },
   scheduler: {
     list: invokeFor<ElectronAPI['scheduler']['list']>(IPC_CHANNELS.scheduler.list),
