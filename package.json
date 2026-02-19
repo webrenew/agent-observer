@@ -93,7 +93,7 @@
     "productName": "Agent Observer",
     "artifactName": "${name}-${version}-${arch}.${ext}",
     "mac": {
-      "identity": null,
+      "identity": "-",
       "category": "public.app-category.developer-tools",
       "icon": "resources/icon.icns",
       "target": [
