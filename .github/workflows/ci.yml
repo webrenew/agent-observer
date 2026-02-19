@@ -46,7 +46,14 @@ jobs:
         run: pnpm build
 
       - name: Audit dependencies (high+)
-        run: pnpm audit --audit-level=high
+        run: |
+          output=$(pnpm audit --audit-level=high 2>&1) && exit 0
+          if echo "$output" | grep -q "ERR_PNPM_AUDIT_BAD_RESPONSE"; then
+            echo "::warning::npm audit endpoint unavailable, skipping"
+            exit 0
+          fi
+          echo "$output"
+          exit 1
 
   frontend-checks:
     name: Frontend Lint, Typecheck, Build
