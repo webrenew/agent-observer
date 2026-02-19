@@ -1,9 +1,10 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import type { AmbientLight, DirectionalLight, InstancedMesh, MeshStandardMaterial, PointLight } from "three";
-import { Color, MathUtils, Object3D } from "three";
+import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame, extend } from "@react-three/fiber";
+import { shaderMaterial } from "@react-three/drei";
+import type { AmbientLight, DirectionalLight, InstancedMesh, Mesh, MeshStandardMaterial, PointLight, ShaderMaterial } from "three";
+import { AdditiveBlending, BackSide, Color, FogExp2, MathUtils, Object3D, Vector3 } from "three";
 import { useDemoStore } from "@/stores/useDemoStore";
 import { AgentCharacter } from "./AgentCharacter";
 import { CelebrationEffect } from "./CelebrationEffect";
@@ -29,11 +30,108 @@ const CELESTIAL_ORBIT_RADIUS_X = 24;
 const CELESTIAL_ORBIT_RADIUS_Y = 13;
 const CELESTIAL_ORBIT_CENTER_Y = 5;
 const CELESTIAL_ORBIT_CENTER_Z = -18;
-const DAY_SKY_COLOR = new Color("#87CEEB");
-const NIGHT_SKY_COLOR = new Color("#0B1226");
-const DAY_SKY_EMISSIVE = new Color("#BFDBFE");
-const NIGHT_SKY_EMISSIVE = new Color("#1E3A8A");
 const showOutdoorEnvironment = true;
+
+// Sky gradient color stops
+const SKY_ZENITH_DAY = new Color("#4A90D9");
+const SKY_ZENITH_NIGHT = new Color("#070B15");
+const SKY_HORIZON_DAY = new Color("#B0D4F1");
+const SKY_HORIZON_NIGHT = new Color("#0E1428");
+const SKY_HORIZON_GOLDEN = new Color("#E8955A");
+const SKY_GROUND_DAY = new Color("#8BA4B8");
+const SKY_GROUND_NIGHT = new Color("#12091E");
+const SUN_GLOW_COLOR = new Color("#FFD080");
+
+// Fog
+const FOG_DAY_COLOR = new Color("#C0D8E8");
+const FOG_GOLDEN_COLOR = new Color("#FFB88C");
+const FOG_NIGHT_COLOR = new Color("#1A1A3E");
+const FOG_DENSITY_DAY = 0.006;
+const FOG_DENSITY_NIGHT = 0.012;
+
+// Window tint
+const WINDOW_DAY_COLOR = new Color("#93C5FD");
+const WINDOW_DAY_EMISSIVE = new Color("#7DD3FC");
+const WINDOW_NIGHT_COLOR = new Color("#FDE68A");
+const WINDOW_NIGHT_EMISSIVE = new Color("#FDBA74");
+const WINDOW_DAY_EMISSIVE_INTENSITY = 0.25;
+const WINDOW_NIGHT_EMISSIVE_INTENSITY = 0.55;
+
+// Reusable Color/Vector3 for per-frame lerp (avoids allocations)
+const _zenith = new Color();
+const _horizon = new Color();
+const _ground = new Color();
+const _fogColor = new Color();
+const _windowColor = new Color();
+const _windowEmissive = new Color();
+const _sunDir = new Vector3();
+const _tmpStarColor = new Color();
+
+function computeGoldenHourFactor(daylight: number): number {
+  const dist = Math.abs(daylight - 0.3);
+  return Math.max(0, 1 - dist / 0.15);
+}
+
+// Gradient sky shader material
+const GradientSkyMaterial = shaderMaterial(
+  {
+    uZenithColor: new Color("#4A90D9"),
+    uHorizonColor: new Color("#B0D4F1"),
+    uGroundColor: new Color("#8BA4B8"),
+    uSunDirection: new Vector3(0, 1, 0),
+    uSunGlowColor: new Color("#FFD080"),
+    uSunGlowIntensity: 0.0,
+  },
+  `
+    varying vec3 vWorldDir;
+    void main() {
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vWorldDir = normalize(worldPos.xyz - cameraPosition);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  `
+    uniform vec3 uZenithColor;
+    uniform vec3 uHorizonColor;
+    uniform vec3 uGroundColor;
+    uniform vec3 uSunDirection;
+    uniform vec3 uSunGlowColor;
+    uniform float uSunGlowIntensity;
+    varying vec3 vWorldDir;
+
+    void main() {
+      vec3 dir = normalize(vWorldDir);
+      float y = dir.y;
+
+      float upperBlend = smoothstep(0.0, 0.55, y);
+      vec3 upper = mix(uHorizonColor, uZenithColor, upperBlend);
+
+      float lowerBlend = smoothstep(-0.35, 0.0, y);
+      vec3 lower = mix(uGroundColor, uHorizonColor, lowerBlend);
+
+      vec3 skyColor = y >= 0.0 ? upper : lower;
+
+      float sunDot = max(dot(dir, uSunDirection), 0.0);
+      float glow = pow(sunDot, 8.0) * uSunGlowIntensity;
+      skyColor += uSunGlowColor * glow;
+
+      gl_FragColor = vec4(skyColor, 1.0);
+    }
+  `
+);
+
+extend({ GradientSkyMaterial });
+
+declare module "@react-three/fiber" {
+  interface ThreeElements {
+    gradientSkyMaterial: ThreeElements["shaderMaterial"];
+  }
+}
+
+// Star field constants
+const STAR_COUNT = 300;
+const STAR_RADIUS = 80;
+const _starDummy = new Object3D();
 
 const SCREEN_COLORS: Record<AgentStatus, { color: string; emissive: string; intensity: number }> = {
   idle: { color: "#1a1a2e", emissive: "#334155", intensity: 0.1 },
@@ -458,6 +556,10 @@ function WallWindow({
   width?: number;
   height?: number;
 }) {
+  const glassRef = useCallback((mat: MeshStandardMaterial | null) => {
+    if (mat) registerWindowGlassWeb(mat);
+  }, []);
+
   return (
     <group position={position} rotation={rotation}>
       <mesh castShadow>
@@ -467,6 +569,7 @@ function WallWindow({
       <mesh position={[0, 0, 0.025]}>
         <boxGeometry args={[width, height, 0.02]} />
         <meshStandardMaterial
+          ref={glassRef}
           color="#93C5FD"
           emissive="#7DD3FC"
           emissiveIntensity={0.35}
@@ -587,22 +690,155 @@ function Whiteboard({
   );
 }
 
-function SkyDome({
+function GradientSkyDome({
   materialRef,
 }: {
-  materialRef: { current: MeshStandardMaterial | null };
+  materialRef: { current: ShaderMaterial | null };
 }) {
   return (
     <mesh>
       <sphereGeometry args={[85, 48, 24]} />
-      <meshStandardMaterial
-        ref={materialRef}
-        color="#87CEEB"
-        emissive="#BFDBFE"
-        emissiveIntensity={0.2}
-        side={1}
-      />
+      <gradientSkyMaterial ref={materialRef} side={BackSide} />
     </mesh>
+  );
+}
+
+interface StarFieldData {
+  theta: number;
+  phi: number;
+  baseScale: number;
+  twinkleSpeed: number;
+  twinklePhase: number;
+}
+
+function StarField({ daylightRef }: { daylightRef: React.RefObject<number> }) {
+  const meshRef = useRef<InstancedMesh>(null);
+
+  const stars = useMemo<StarFieldData[]>(() => {
+    return Array.from({ length: STAR_COUNT }, () => ({
+      theta: Math.random() * Math.PI * 2,
+      phi: Math.random() * Math.PI * 0.45,
+      baseScale: 0.08 + Math.random() * 0.12,
+      twinkleSpeed: 2 + Math.random() * 4,
+      twinklePhase: Math.random() * Math.PI * 2,
+    }));
+  }, []);
+
+  useFrame(({ clock }) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+
+    const visibility = MathUtils.clamp(1 - (daylightRef.current ?? 1) / 0.3, 0, 1);
+    if (visibility <= 0.001) {
+      mesh.visible = false;
+      return;
+    }
+    mesh.visible = true;
+
+    const t = clock.getElapsedTime();
+
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const star = stars[i];
+      const twinkle = 0.5 + 0.5 * Math.sin(t * star.twinkleSpeed + star.twinklePhase);
+      const scale = star.baseScale * twinkle * visibility;
+
+      const sinPhi = Math.sin(star.phi);
+      _starDummy.position.set(
+        STAR_RADIUS * sinPhi * Math.cos(star.theta),
+        STAR_RADIUS * Math.cos(star.phi),
+        STAR_RADIUS * sinPhi * Math.sin(star.theta)
+      );
+
+      _starDummy.scale.setScalar(scale);
+      _starDummy.updateMatrix();
+      mesh.setMatrixAt(i, _starDummy.matrix);
+
+      const brightness = 0.7 + 0.3 * twinkle;
+      _tmpStarColor.setRGB(brightness, brightness, brightness * 0.95);
+      mesh.setColorAt(i, _tmpStarColor);
+    }
+
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  });
+
+  return (
+    <instancedMesh ref={meshRef} args={[undefined, undefined, STAR_COUNT]}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial vertexColors transparent opacity={0.9} depthWrite={false} />
+    </instancedMesh>
+  );
+}
+
+function CelestialGlow({
+  targetRef,
+  color,
+  visibilityFn,
+  outerScale,
+  innerScale,
+}: {
+  targetRef: React.RefObject<{ position: { x: number; y: number; z: number } } | null>;
+  color: string;
+  visibilityFn: () => number;
+  outerScale: number;
+  innerScale: number;
+}) {
+  const outerRef = useRef<Mesh>(null);
+  const innerRef = useRef<Mesh>(null);
+
+  useFrame(({ camera }) => {
+    const target = targetRef.current;
+    if (!target) return;
+
+    const pos = target.position;
+    const fadeOpacity = MathUtils.clamp(visibilityFn(), 0, 1);
+
+    if (outerRef.current) {
+      outerRef.current.position.set(pos.x, pos.y, pos.z);
+      outerRef.current.quaternion.copy(camera.quaternion);
+      outerRef.current.scale.setScalar(outerScale);
+      const mat = outerRef.current.material;
+      if ("opacity" in mat) {
+        (mat as { opacity: number }).opacity = fadeOpacity * 0.25;
+      }
+      outerRef.current.visible = fadeOpacity > 0.01;
+    }
+
+    if (innerRef.current) {
+      innerRef.current.position.set(pos.x, pos.y, pos.z);
+      innerRef.current.quaternion.copy(camera.quaternion);
+      innerRef.current.scale.setScalar(innerScale);
+      const mat = innerRef.current.material;
+      if ("opacity" in mat) {
+        (mat as { opacity: number }).opacity = fadeOpacity * 0.4;
+      }
+      innerRef.current.visible = fadeOpacity > 0.01;
+    }
+  });
+
+  return (
+    <>
+      <mesh ref={outerRef}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.25}
+          blending={AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh ref={innerRef}>
+        <planeGeometry args={[1, 1]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.4}
+          blending={AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </>
   );
 }
 
@@ -883,11 +1119,20 @@ function OfficeSnackBar({
   );
 }
 
+// Module-level shared array for window glass materials
+const windowGlassMaterials: MeshStandardMaterial[] = [];
+
+function registerWindowGlassWeb(mat: MeshStandardMaterial): void {
+  if (!windowGlassMaterials.includes(mat)) {
+    windowGlassMaterials.push(mat);
+  }
+}
+
 export function Office() {
   const agents = useDemoStore((s) => s.agents);
   const sceneUnlocks = useDemoStore((s) => s.sceneUnlocks);
   const sceneCaps = useDemoStore((s) => s.sceneCaps);
-  const skyMaterialRef = useRef<MeshStandardMaterial>(null);
+  const skyMaterialRef = useRef<ShaderMaterial>(null);
   const sunMaterialRef = useRef<MeshStandardMaterial>(null);
   const moonMaterialRef = useRef<MeshStandardMaterial>(null);
   const ambientLightRef = useRef<AmbientLight>(null);
@@ -897,6 +1142,8 @@ export function Office() {
   const indoorFillBRef = useRef<PointLight>(null);
   const sunOrbRef = useRef<Object3D>(null);
   const moonOrbRef = useRef<Object3D>(null);
+  const daylightRef = useRef(1);
+  const fogRef = useRef<FogExp2 | null>(null);
   const experimentalDecorationsEnabled = useDemoStore(
     (s) => s.experimentalDecorationsEnabled
   );
@@ -988,8 +1235,17 @@ export function Office() {
     0
   );
 
-  useFrame(({ clock }) => {
-    const { daylight, moonlight, sunPosition, moonPosition } = resolveCelestialState(clock.getElapsedTime());
+  useFrame(({ clock, scene: frameScene }) => {
+    const t = clock.getElapsedTime();
+    const { daylight, moonlight, sunPosition, moonPosition } = resolveCelestialState(t);
+    daylightRef.current = daylight;
+    const golden = computeGoldenHourFactor(daylight);
+
+    // Lazy fog initialization
+    if (!fogRef.current) {
+      fogRef.current = new FogExp2(FOG_DAY_COLOR.getHex(), FOG_DENSITY_DAY);
+      frameScene.fog = fogRef.current;
+    }
 
     if (sunOrbRef.current) {
       sunOrbRef.current.position.set(sunPosition[0], sunPosition[1], sunPosition[2]);
@@ -1024,22 +1280,72 @@ export function Office() {
     if (indoorFillBRef.current) {
       indoorFillBRef.current.intensity = MathUtils.lerp(0.46, 0.18, daylight);
     }
+
+    // Gradient sky shader uniforms
     if (skyMaterialRef.current) {
-      skyMaterialRef.current.color.copy(NIGHT_SKY_COLOR).lerp(DAY_SKY_COLOR, daylight);
-      skyMaterialRef.current.emissive.copy(NIGHT_SKY_EMISSIVE).lerp(DAY_SKY_EMISSIVE, daylight);
-      skyMaterialRef.current.emissiveIntensity = MathUtils.lerp(0.18, 0.22, daylight);
+      const mat = skyMaterialRef.current;
+      _zenith.copy(SKY_ZENITH_NIGHT).lerp(SKY_ZENITH_DAY, daylight);
+      mat.uniforms.uZenithColor.value.copy(_zenith);
+
+      _horizon.copy(SKY_HORIZON_NIGHT).lerp(SKY_HORIZON_DAY, daylight);
+      if (golden > 0) {
+        _horizon.lerp(SKY_HORIZON_GOLDEN, golden * 0.7);
+      }
+      mat.uniforms.uHorizonColor.value.copy(_horizon);
+
+      _ground.copy(SKY_GROUND_NIGHT).lerp(SKY_GROUND_DAY, daylight);
+      mat.uniforms.uGroundColor.value.copy(_ground);
+
+      _sunDir.set(sunPosition[0], sunPosition[1], sunPosition[2]).normalize();
+      mat.uniforms.uSunDirection.value.copy(_sunDir);
+      mat.uniforms.uSunGlowIntensity.value = daylight * 0.6 + golden * 0.4;
+      mat.uniforms.uSunGlowColor.value.copy(SUN_GLOW_COLOR);
     }
+
     if (sunMaterialRef.current) {
       sunMaterialRef.current.emissiveIntensity = MathUtils.lerp(0.22, 1.35, daylight);
     }
     if (moonMaterialRef.current) {
       moonMaterialRef.current.emissiveIntensity = MathUtils.lerp(0.06, 0.7, moonlight);
     }
+
+    // Fog
+    if (fogRef.current) {
+      fogRef.current.density = MathUtils.lerp(FOG_DENSITY_NIGHT, FOG_DENSITY_DAY, daylight);
+      _fogColor.copy(FOG_NIGHT_COLOR).lerp(FOG_DAY_COLOR, daylight);
+      if (golden > 0) {
+        _fogColor.lerp(FOG_GOLDEN_COLOR, golden * 0.5);
+      }
+      fogRef.current.color.copy(_fogColor);
+    }
+
+    // Window tint
+    if (windowGlassMaterials.length > 0) {
+      _windowColor.copy(WINDOW_NIGHT_COLOR).lerp(WINDOW_DAY_COLOR, daylight);
+      _windowEmissive.copy(WINDOW_NIGHT_EMISSIVE).lerp(WINDOW_DAY_EMISSIVE, daylight);
+      let emissiveIntensity = MathUtils.lerp(
+        WINDOW_NIGHT_EMISSIVE_INTENSITY,
+        WINDOW_DAY_EMISSIVE_INTENSITY,
+        daylight
+      );
+      if (daylight < 0.3) {
+        emissiveIntensity += Math.sin(t * 3.5) * 0.08 * (1 - daylight / 0.3);
+      }
+      for (const mat of windowGlassMaterials) {
+        mat.color.copy(_windowColor);
+        mat.emissive.copy(_windowEmissive);
+        mat.emissiveIntensity = emissiveIntensity;
+      }
+    }
   });
+
+  const sunVisibilityFn = useCallback(() => daylightRef.current ?? 1, []);
+  const moonVisibilityFn = useCallback(() => 1 - (daylightRef.current ?? 1), []);
 
   return (
     <group>
-      <SkyDome materialRef={skyMaterialRef} />
+      <GradientSkyDome materialRef={skyMaterialRef} />
+      <StarField daylightRef={daylightRef} />
 
       {/* Lighting */}
       <ambientLight ref={ambientLightRef} intensity={0.52} />
@@ -1076,6 +1382,13 @@ export function Office() {
           emissiveIntensity={1}
         />
       </mesh>
+      <CelestialGlow
+        targetRef={sunOrbRef}
+        color="#FFD080"
+        visibilityFn={sunVisibilityFn}
+        outerScale={4.5}
+        innerScale={2.2}
+      />
       <mesh ref={moonOrbRef} position={[0, -8, CELESTIAL_ORBIT_CENTER_Z]}>
         <sphereGeometry args={[0.72, 20, 16]} />
         <meshStandardMaterial
@@ -1085,6 +1398,13 @@ export function Office() {
           emissiveIntensity={0.2}
         />
       </mesh>
+      <CelestialGlow
+        targetRef={moonOrbRef}
+        color="#8AB4E8"
+        visibilityFn={moonVisibilityFn}
+        outerScale={3.0}
+        innerScale={1.5}
+      />
 
       {showOutdoorEnvironment && (
         <>
@@ -1134,6 +1454,7 @@ export function Office() {
           position={[x, 2.45, -13.88]}
           width={BACK_WINDOW_SIZE.width}
           height={BACK_WINDOW_SIZE.height}
+
         />
       ))}
       {SIDE_WINDOW_POSITIONS.map((z) => (
@@ -1143,6 +1464,7 @@ export function Office() {
           rotation={[0, Math.PI / 2, 0]}
           width={SIDE_WINDOW_SIZE.width}
           height={SIDE_WINDOW_SIZE.height}
+
         />
       ))}
       {SIDE_WINDOW_POSITIONS.map((z) => (
@@ -1152,6 +1474,7 @@ export function Office() {
           rotation={[0, -Math.PI / 2, 0]}
           width={SIDE_WINDOW_SIZE.width}
           height={SIDE_WINDOW_SIZE.height}
+
         />
       ))}
 

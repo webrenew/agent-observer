@@ -114,7 +114,7 @@
     "dmg": {
       "title": "Agent Observer",
       "icon": "resources/icon.icns",
-      "backgroundColor": "#16181d",
+      "background": "resources/dmg-background.png",
       "iconSize": 140,
       "iconTextSize": 18,
       "contents": [
