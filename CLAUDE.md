@@ -92,6 +92,30 @@ Each agent status maps to a character animation + optional desk effect:
 - Agent appearance is randomized on spawn, not user-configurable
 - Main process detection is dual: process name polling + output pattern matching
 
+## Build & Distribution
+
+### Packaging
+```bash
+pnpm package        # electron-vite build + electron-builder --mac --dir
+pnpm package:dmg    # electron-vite build + electron-builder --mac dmg
+```
+- Output lands in `release/` — DMG, blockmap, and `latest-mac.yml` (for electron-updater)
+- Mac config uses `"identity": null` — skips code signing (no Apple Developer account needed)
+- Users must **right-click > Open** on first launch to bypass Gatekeeper
+
+### Releasing
+1. Bump `version` in `package.json`
+2. `pnpm package:dmg` locally (CI doesn't build DMGs)
+3. PR → merge to main
+4. `gh release create vX.Y.Z release/agent-observer-*.dmg release/*.blockmap release/latest-mac.yml --target main`
+5. The `latest-mac.yml` is required for electron-updater auto-update detection
+
+### Gotchas
+- **Branch protection** is strict — can't push to main directly or admin-merge past failed checks
+- **npm audit endpoint** can go down (500 errors); CI audit step handles this gracefully with `ERR_PNPM_AUDIT_BAD_RESPONSE` detection
+- **Transitive dep vulnerabilities** (e.g. `tar`, `minimatch` in electron toolchain) — fix via `pnpm.overrides` in `package.json`, not by upgrading direct deps
+- **GitHub release tags**: when recreating a release, use `--target main` if the tag already exists locally
+
 ## IPC Channels
 
 | Channel | Direction | Purpose |

@@ -1,3 +1,7 @@
+import { useCallback } from 'react'
+import type { MeshStandardMaterial } from 'three'
+import { registerWindowGlass } from './window-glass-registry'
+
 const WALL_COLOR = '#e8e0d8'
 const FLOOR_COLOR = '#d4a574'
 const BACK_WINDOW_POSITIONS = [-7.2, -2.4, 2.4, 7.2] as const
@@ -59,6 +63,10 @@ function WallWindow({
   width = 2,
   height = 1.35,
 }: WallWindowProps) {
+  const glassRef = useCallback((mat: MeshStandardMaterial | null) => {
+    if (mat) registerWindowGlass(mat)
+  }, [])
+
   return (
     <group position={position} rotation={rotation}>
       <mesh castShadow>
@@ -68,6 +76,7 @@ function WallWindow({
       <mesh position={[0, 0, 0.025]}>
         <boxGeometry args={[width, height, 0.02]} />
         <meshStandardMaterial
+          ref={glassRef}
           color="#93c5fd"
           emissive="#7dd3fc"
           emissiveIntensity={0.35}
@@ -261,6 +270,7 @@ export function Room() {
           position={[x, 2.45, -13.88]}
           width={BACK_WINDOW_SIZE.width}
           height={BACK_WINDOW_SIZE.height}
+
         />
       ))}
 
@@ -294,6 +304,7 @@ export function Room() {
           rotation={[0, Math.PI / 2, 0]}
           width={SIDE_WINDOW_SIZE.width}
           height={SIDE_WINDOW_SIZE.height}
+
         />
       ))}
       {SIDE_WINDOW_POSITIONS.map((z) => (
@@ -303,6 +314,7 @@ export function Room() {
           rotation={[0, -Math.PI / 2, 0]}
           width={SIDE_WINDOW_SIZE.width}
           height={SIDE_WINDOW_SIZE.height}
+
         />
       ))}
 
