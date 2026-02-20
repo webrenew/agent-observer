@@ -5,7 +5,18 @@ import { Object3D, Color, MathUtils } from 'three'
 import type { CelebrationType } from '../types'
 
 const PARTICLE_COUNT = 40
-const DURATION = 4
+const CELEBRATION_DURATION_SECONDS: Record<CelebrationType, number> = {
+  confetti: 4,
+  rocket: 3,
+  sparkles: 2.5,
+  explosion: 2,
+  trophy: 3,
+  pizza_party: 4.2,
+  floppy_rain: 3.8,
+  dialup_wave: 3.4,
+  fax_blast: 3.2,
+  dance_party: 5,
+}
 
 interface Particle {
   x: number
@@ -37,6 +48,9 @@ function makeParticles(type: CelebrationType): Particle[] {
   let sx = 0.05
   let sy = 0.05
   let sz = 0.05
+  let originSpread = 0.3
+  let originY = 1.5
+  let originYJitter = 0.5
 
   if (type === 'explosion') {
     colors = errorColors
@@ -80,12 +94,42 @@ function makeParticles(type: CelebrationType): Particle[] {
     sx = 0.04
     sy = 0.04
     sz = 0.04
+  } else if (type === 'sparkles') {
+    colors = ['#fef08a', '#facc15', '#fde68a', '#f59e0b', '#f8fafc']
+    spread = 0.9
+    upForce = 2.6
+    sx = 0.025
+    sy = 0.025
+    sz = 0.025
+    originSpread = 0.45
+    originY = 1.6
+    originYJitter = 0.25
+  } else if (type === 'rocket') {
+    colors = ['#e2e8f0', '#93c5fd', '#60a5fa', '#bfdbfe']
+    spread = 0.45
+    upForce = 6.2
+    sx = 0.03
+    sy = 0.08
+    sz = 0.03
+    originSpread = 0.16
+    originY = 1.2
+    originYJitter = 0.2
+  } else if (type === 'trophy') {
+    colors = ['#facc15', '#fbbf24', '#f59e0b', '#fef3c7']
+    spread = 0.7
+    upForce = 2.9
+    sx = 0.055
+    sy = 0.085
+    sz = 0.055
+    originSpread = 0.24
+    originY = 1.35
+    originYJitter = 0.2
   }
 
   return Array.from({ length: PARTICLE_COUNT }, () => ({
-    x: (Math.random() - 0.5) * 0.3,
-    y: 1.5 + Math.random() * 0.5,
-    z: (Math.random() - 0.5) * 0.3,
+    x: (Math.random() - 0.5) * originSpread,
+    y: originY + Math.random() * originYJitter,
+    z: (Math.random() - 0.5) * originSpread,
     vx: (Math.random() - 0.5) * spread,
     vy: Math.random() * upForce + 1,
     vz: (Math.random() - 0.5) * spread,
@@ -110,17 +154,18 @@ export function CelebrationEffect({
   const meshRef = useRef<InstancedMesh>(null)
   const dummy = useMemo(() => new Object3D(), [])
   const particles = useMemo(() => makeParticles(type), [type])
+  const duration = CELEBRATION_DURATION_SECONDS[type]
 
   useFrame(() => {
     if (!meshRef.current) return
     const elapsed = (Date.now() - startedAt) / 1000
-    if (elapsed > DURATION) {
+    if (elapsed > duration) {
       meshRef.current.visible = false
       return
     }
 
-    const progress = elapsed / DURATION
-    const gravity = -6
+    const progress = elapsed / duration
+    const gravity = type === 'rocket' ? -4 : type === 'trophy' ? -4.8 : -6
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       const p = particles[i]
@@ -133,7 +178,10 @@ export function CelebrationEffect({
       )
 
       const fade = MathUtils.lerp(1, 0, Math.max(0, progress - 0.5) * 2)
-      dummy.scale.set(p.sx * fade, p.sy * fade, p.sz * fade)
+      const twinkle = type === 'sparkles'
+        ? 0.75 + Math.abs(Math.sin(t * 18 + i * 0.6)) * 0.7
+        : 1
+      dummy.scale.set(p.sx * fade * twinkle, p.sy * fade * twinkle, p.sz * fade * twinkle)
       dummy.rotation.set(t * 3 + i, t * 2 + i * 0.5, t + i * 0.3)
       dummy.updateMatrix()
       meshRef.current.setMatrixAt(i, dummy.matrix)

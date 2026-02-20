@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei'
 import type { Group } from 'three'
 import type { Agent, AgentStatus } from '../types'
 import { STATUS_LABELS } from '../types'
+import { useAgentStore } from '../store/agents'
 
 const STATUS_GLOW: Record<AgentStatus, string> = {
   idle: '#94a3b8',
@@ -35,6 +36,7 @@ export function AgentCharacter({
   const headRef = useRef<Group>(null)
   const leftArmRef = useRef<Group>(null)
   const rightArmRef = useRef<Group>(null)
+  const selectAgent = useAgentStore((s) => s.selectAgent)
   const { appearance, status } = agent
   const glow = STATUS_GLOW[status]
   const isPizzaParty = agent.activeCelebration === 'pizza_party' && partyTargetPosition !== null
@@ -130,7 +132,15 @@ export function AgentCharacter({
   })
 
   return (
-    <group ref={rootGroup} position={position} rotation={rotation}>
+    <group
+      ref={rootGroup}
+      position={position}
+      rotation={rotation}
+      onClick={(event) => {
+        event.stopPropagation()
+        selectAgent(agent.id)
+      }}
+    >
       <group ref={group}>
         {/* Head */}
         <group ref={headRef} position={[0, 1.6, 0]}>
