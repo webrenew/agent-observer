@@ -186,6 +186,36 @@ export function AgentCharacter({
       return
     }
 
+    if (partySeatPosition && agent.activeCelebration === 'dance_party') {
+      const targetX = partySeatPosition[0]
+      const targetY = partySeatPosition[1]
+      const targetZ = partySeatPosition[2]
+
+      const current = groupRef.current.position
+      const dx = targetX - current.x
+      const dz = targetZ - current.z
+      const blend = Math.min(1, delta * 4.2)
+      current.x += dx * blend
+      current.z += dz * blend
+      current.y += (targetY - current.y) * blend
+
+      if (partyLookAtPosition) {
+        const yaw = Math.atan2(
+          partyLookAtPosition[0] - current.x,
+          partyLookAtPosition[2] - current.z
+        )
+        groupRef.current.rotation.y = yaw
+      }
+
+      current.y += Math.abs(Math.sin(t * 6)) * 0.15
+      groupRef.current.rotation.y += Math.sin(t * 3) * 0.4
+      head.rotation.z = Math.sin(t * 4) * 0.3
+      if (leftArm) leftArm.rotation.x = Math.sin(t * 6) * 1.2 - 1.5
+      if (rightArm) rightArm.rotation.x = Math.sin(t * 6 + Math.PI) * 1.2 - 1.5
+      if (body) body.rotation.x = 0
+      return
+    }
+
     switch (agent.status) {
       case 'idle': {
         groupRef.current.position.y = charPos[1] + Math.sin(t * 1.5) * 0.02

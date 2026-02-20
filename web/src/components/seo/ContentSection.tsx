@@ -322,10 +322,30 @@ export function ContentSection() {
             <li>Use the website installer link to download the latest `.dmg`.</li>
             <li>Open the DMG, then drag Agent Observer into `Applications`.</li>
             <li>
-              Right-click Agent Observer in Applications and choose{" "}
+              <strong>Important:</strong> Before opening for the first time, run
+              this command in Terminal to clear the macOS quarantine flag:
+              <br />
+              <code
+                style={{
+                  display: "inline-block",
+                  marginTop: 4,
+                  padding: "3px 8px",
+                  background: "rgba(10,12,11,0.5)",
+                  borderRadius: 4,
+                  fontSize: 11,
+                  color: "#d6d2cd",
+                  fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                  userSelect: "all",
+                }}
+              >
+                xattr -dr com.apple.quarantine /Applications/Agent\ Observer.app
+              </code>
+            </li>
+            <li>
+              Open Agent Observer from Applications. If macOS still shows a
+              warning, right-click the app, choose{" "}
               <strong>Open</strong>, then click <strong>Open</strong> in the
-              dialog. macOS requires this extra step for community-distributed
-              apps.
+              dialog.
             </li>
             <li>Approve any requested permissions on first launch.</li>
           </ol>

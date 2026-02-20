@@ -37,19 +37,21 @@ export function AgentCharacter({
   const { appearance, status } = agent;
   const glow = STATUS_GLOW[status];
   const isPizzaParty = agent.activeCelebration === "pizza_party" && partyTargetPosition !== null;
+  const isDancing = agent.activeCelebration === "dance_party" && partyTargetPosition !== null;
+  const isGathering = isPizzaParty || isDancing;
 
   useFrame((_state, delta) => {
     if (!group.current || !rootGroup.current) return;
     const t = performance.now() / 1000;
 
-    const target = isPizzaParty ? partyTargetPosition : position;
+    const target = isGathering ? partyTargetPosition : position;
     const root = rootGroup.current;
-    const blend = Math.min(1, delta * (isPizzaParty ? 4.2 : 7));
+    const blend = Math.min(1, delta * (isGathering ? 4.2 : 7));
     root.position.x += (target[0] - root.position.x) * blend;
     root.position.z += (target[2] - root.position.z) * blend;
     root.position.y += (target[1] - root.position.y) * blend;
 
-    if (isPizzaParty && partyLookAtPosition) {
+    if (isGathering && partyLookAtPosition) {
       const yaw = Math.atan2(
         partyLookAtPosition[0] - root.position.x,
         partyLookAtPosition[2] - root.position.z
@@ -75,6 +77,15 @@ export function AgentCharacter({
     head.rotation.y = 0;
     leftArm.rotation.x = 0;
     rightArm.rotation.x = 0;
+
+    if (isDancing) {
+      group.current.position.y = Math.abs(Math.sin(t * 6)) * 0.15;
+      group.current.rotation.y = Math.sin(t * 3) * 0.4;
+      head.rotation.z = Math.sin(t * 4) * 0.3;
+      leftArm.rotation.x = Math.sin(t * 6) * 1.2 - 1.5;
+      rightArm.rotation.x = Math.sin(t * 6 + Math.PI) * 1.2 - 1.5;
+      return;
+    }
 
     switch (status) {
       case "thinking":

@@ -19,6 +19,8 @@ const Z_OFFSET = -6.0
 const DESK_FACING_Y = Math.PI
 const PARTY_CENTER: [number, number, number] = [0, 0, -6.35]
 const PARTY_RADIUS = 1.75
+const DANCE_CENTER: [number, number, number] = [0, 0, -5]
+const DANCE_RADIUS = 2.2
 const SNACK_BAR_POSITION: [number, number, number] = [10.05, 0, 0.95]
 
 function computeDeskPosition(index: number): [number, number, number] {
@@ -34,6 +36,16 @@ function computePartySeatPosition(index: number, total: number): [number, number
     PARTY_CENTER[0] + Math.cos(angle) * PARTY_RADIUS,
     0,
     PARTY_CENTER[2] + Math.sin(angle) * PARTY_RADIUS,
+  ]
+}
+
+function computeDanceSeatPosition(index: number, total: number): [number, number, number] {
+  const count = Math.max(3, total)
+  const angle = (index / count) * Math.PI * 2 - Math.PI / 2
+  return [
+    DANCE_CENTER[0] + Math.cos(angle) * DANCE_RADIUS,
+    0,
+    DANCE_CENTER[2] + Math.sin(angle) * DANCE_RADIUS,
   ]
 }
 
@@ -199,6 +211,22 @@ export function Office() {
     (latest, agent) => Math.max(latest, agent.celebrationStartedAt ?? 0),
     0
   )
+  const danceAgents = useMemo(
+    () => deskAgents
+      .filter((agent) => agent.activeCelebration === 'dance_party')
+      .sort((a, b) => a.deskIndex - b.deskIndex),
+    [deskAgents]
+  )
+  const danceSeatByAgentId = useMemo(() => {
+    const map = new Map<string, [number, number, number]>()
+    for (let index = 0; index < danceAgents.length; index += 1) {
+      map.set(
+        danceAgents[index].id,
+        computeDanceSeatPosition(index, danceAgents.length)
+      )
+    }
+    return map
+  }, [danceAgents])
 
   return (
     <>
@@ -219,8 +247,18 @@ export function Office() {
                 agent={agent}
                 position={position}
                 facingY={DESK_FACING_Y}
-                partySeatPosition={partySeatByAgentId.get(agent.id) ?? null}
-                partyLookAtPosition={PARTY_CENTER}
+                partySeatPosition={
+                  partySeatByAgentId.get(agent.id)
+                  ?? danceSeatByAgentId.get(agent.id)
+                  ?? null
+                }
+                partyLookAtPosition={
+                  partySeatByAgentId.has(agent.id)
+                    ? PARTY_CENTER
+                    : danceSeatByAgentId.has(agent.id)
+                      ? DANCE_CENTER
+                      : null
+                }
               />
             )}
           </group>
@@ -289,6 +327,37 @@ export function Office() {
             position={[PARTY_CENTER[0], -0.55, PARTY_CENTER[2]]}
             onComplete={() => undefined}
           />
+        </group>
+      )}
+
+      {danceAgents.length > 0 && (
+        <group>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[DANCE_CENTER[0], 0.005, DANCE_CENTER[2]]}>
+            <circleGeometry args={[DANCE_RADIUS + 0.6, 32]} />
+            <meshStandardMaterial color="#2A1B3D" />
+          </mesh>
+          {Array.from({ length: 8 }, (_, i) => {
+            const tileAngle = (i / 8) * Math.PI * 2
+            const tileColors = ['#c084fc', '#818cf8', '#f472b6', '#22d3ee', '#facc15', '#fb923c', '#4ade80', '#f87171']
+            return (
+              <mesh
+                key={`dance-tile-${i}`}
+                rotation={[-Math.PI / 2, 0, 0]}
+                position={[
+                  DANCE_CENTER[0] + Math.cos(tileAngle) * 1.3,
+                  0.008,
+                  DANCE_CENTER[2] + Math.sin(tileAngle) * 1.3,
+                ]}
+              >
+                <boxGeometry args={[0.6, 0.6, 0.003]} />
+                <meshStandardMaterial
+                  color={tileColors[i]}
+                  emissive={tileColors[i]}
+                  emissiveIntensity={0.5}
+                />
+              </mesh>
+            )
+          })}
         </group>
       )}
 

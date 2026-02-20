@@ -10,12 +10,10 @@ import {
   panelFocusChannel,
 } from '../shared/panel-registry'
 
-const DEFAULT_LOCAL_DEV_DIRECTORY = path.join(os.homedir(), 'dev')
-
 const DEFAULT_SETTINGS: AppSettings = {
   general: {
-    startingDirectory: 'custom',
-    customDirectory: DEFAULT_LOCAL_DEV_DIRECTORY,
+    startingDirectory: 'home',
+    customDirectory: '',
     shell: 'default',
     customShell: ''
   },
@@ -76,26 +74,7 @@ const SETTINGS_FILE = path.join(SETTINGS_DIR, 'settings.json')
 let cachedSettings: AppSettings = { ...DEFAULT_SETTINGS }
 
 function normalizeStartingDirectory(settings: AppSettings): { settings: AppSettings; changed: boolean } {
-  const customDirectory = settings.general.customDirectory?.trim() ?? ''
-  const shouldUseDevDefault =
-    settings.general.startingDirectory === 'home' &&
-    customDirectory.length === 0
-
-  if (!shouldUseDevDefault) {
-    return { settings, changed: false }
-  }
-
-  return {
-    changed: true,
-    settings: {
-      ...settings,
-      general: {
-        ...settings.general,
-        startingDirectory: 'custom',
-        customDirectory: DEFAULT_LOCAL_DEV_DIRECTORY,
-      },
-    },
-  }
+  return { settings, changed: false }
 }
 
 function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {

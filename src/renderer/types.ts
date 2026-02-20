@@ -19,6 +19,7 @@ export type CelebrationType =
   | 'floppy_rain'
   | 'dialup_wave'
   | 'fax_blast'
+  | 'dance_party'
 
 export type AgentEventType =
   | 'spawn' | 'exit' | 'status_change' | 'file_write'

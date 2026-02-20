@@ -46,7 +46,7 @@ export function ScenePanel() {
             position: [8, 7, 8],
             fov: 45,
             near: 0.1,
-            far: 100,
+            far: 200,
           }}
           onCreated={({ gl }) => {
             setCanvasElement(gl.domElement)

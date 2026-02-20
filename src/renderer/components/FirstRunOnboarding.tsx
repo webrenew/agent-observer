@@ -177,20 +177,27 @@ export function FirstRunOnboarding() {
           </p>
         </div>
 
-        <div style={{ border: '1px solid rgba(89,86,83,0.25)', borderRadius: 8, padding: 12 }}>
+        <div style={{ border: `1px solid ${claudeCheck.status === 'error' ? 'rgba(196,80,80,0.35)' : 'rgba(89,86,83,0.25)'}`, borderRadius: 8, padding: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
             <div>
-              <div style={{ color: '#9A9692', fontSize: 13, fontWeight: 600 }}>Claude CLI availability</div>
-              <div style={{ color: '#595653', fontSize: 11 }}>
-                {claudeCheck.binaryPath ?? 'No Claude binary resolved yet'}
-              </div>
-              {claudeCheck.version && (
-                <div style={{ color: '#595653', fontSize: 11 }}>
-                  Version: {claudeCheck.version}
-                </div>
+              <div style={{ color: '#9A9692', fontSize: 13, fontWeight: 600 }}>Claude Code CLI</div>
+              {claudeCheck.status === 'ok' && (
+                <>
+                  <div style={{ color: '#548C5A', fontSize: 11 }}>
+                    Installed at {claudeCheck.binaryPath}
+                  </div>
+                  {claudeCheck.version && (
+                    <div style={{ color: '#595653', fontSize: 11 }}>
+                      Version: {claudeCheck.version}
+                    </div>
+                  )}
+                </>
               )}
-              {claudeCheck.error && (
-                <div style={{ color: '#c45050', fontSize: 11 }}>{claudeCheck.error}</div>
+              {claudeCheck.status === 'checking' && (
+                <div style={{ color: '#74747C', fontSize: 11 }}>Checking...</div>
+              )}
+              {claudeCheck.status === 'idle' && (
+                <div style={{ color: '#74747C', fontSize: 11 }}>Not checked yet</div>
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -221,6 +228,57 @@ export function FirstRunOnboarding() {
               </button>
             </div>
           </div>
+
+          {claudeCheck.status === 'error' && (
+            <div style={{ marginTop: 10, padding: 10, background: 'rgba(196,80,80,0.08)', borderRadius: 6 }}>
+              <div style={{ color: '#d6d2cd', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                Claude Code is required
+              </div>
+              <div style={{ color: '#9A9692', fontSize: 11, lineHeight: 1.5 }}>
+                Agent Observer needs Claude Code (the CLI) to run AI agents. Install it, then click Re-check above.
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#74747C', fontSize: 10, fontWeight: 600, minWidth: 14 }}>1.</span>
+                  <code
+                    style={{
+                      flex: 1,
+                      background: 'rgba(10,12,11,0.6)',
+                      border: '1px solid rgba(89,86,83,0.25)',
+                      borderRadius: 4,
+                      padding: '5px 8px',
+                      fontSize: 11,
+                      color: '#d6d2cd',
+                      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                      userSelect: 'all',
+                    }}
+                  >
+                    npm install -g @anthropic-ai/claude-code
+                  </code>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ color: '#74747C', fontSize: 10, fontWeight: 600, minWidth: 14 }}>2.</span>
+                  <span style={{ color: '#9A9692', fontSize: 11 }}>
+                    Run <code style={{ color: '#d6d2cd', fontFamily: 'Menlo, Monaco, "Courier New", monospace', fontSize: 10 }}>claude</code> once in your terminal to authenticate
+                  </span>
+                </div>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <a
+                  href="https://docs.anthropic.com/en/docs/claude-code/getting-started"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#548C5A',
+                    fontSize: 11,
+                    textDecoration: 'none',
+                  }}
+                >
+                  View full install guide →
+                </a>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ border: '1px solid rgba(89,86,83,0.25)', borderRadius: 8, padding: 12 }}>

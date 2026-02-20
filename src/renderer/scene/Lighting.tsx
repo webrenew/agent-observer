@@ -35,7 +35,7 @@ import {
   computeGoldenHourFactor,
 } from './sky-gradient'
 
-const DAY_DURATION_SECONDS = 6 * 60 * 60
+const DAY_DURATION_SECONDS = 8 * 60
 const CELESTIAL_ORBIT_RADIUS_X = 24
 const CELESTIAL_ORBIT_RADIUS_Y = 13
 const CELESTIAL_ORBIT_CENTER_Y = 5
@@ -56,7 +56,7 @@ function clamp01(value: number): number {
 
 function resolveCelestialState(elapsedSeconds: number) {
   const phase = (elapsedSeconds % DAY_DURATION_SECONDS) / DAY_DURATION_SECONDS
-  const sunAngle = phase * Math.PI * 2 - Math.PI / 2
+  const sunAngle = phase * Math.PI * 2 + Math.PI / 2
   const moonAngle = sunAngle + Math.PI
   const sunPosition: [number, number, number] = [
     Math.cos(sunAngle) * CELESTIAL_ORBIT_RADIUS_X,
@@ -188,16 +188,16 @@ export function Lighting() {
     }
     if (moonLightRef.current) {
       moonLightRef.current.position.set(moonPosition[0], moonPosition[1], moonPosition[2])
-      moonLightRef.current.intensity = MathUtils.lerp(0.06, 0.42, moonlight)
+      moonLightRef.current.intensity = MathUtils.lerp(0.08, 0.5, moonlight)
     }
 
     // --- Ambient light ---
     if (ambientLightRef.current) {
-      ambientLightRef.current.intensity = MathUtils.lerp(0.2, 0.58, daylight)
+      ambientLightRef.current.intensity = MathUtils.lerp(0.28, 0.58, daylight)
       ambientLightRef.current.color.setRGB(
-        MathUtils.lerp(0.3, 1, daylight),
-        MathUtils.lerp(0.35, 0.98, daylight),
-        MathUtils.lerp(0.5, 0.92, daylight)
+        MathUtils.lerp(0.22, 1, daylight),
+        MathUtils.lerp(0.26, 0.98, daylight),
+        MathUtils.lerp(0.52, 0.92, daylight)
       )
     }
 
@@ -220,6 +220,8 @@ export function Lighting() {
       _ground.copy(SKY_GROUND_NIGHT).lerp(SKY_GROUND_DAY, daylight)
       mat.uniforms.uGroundColor.value.copy(_ground)
 
+      frameScene.background = _horizon
+
       // Sun direction for glow
       _sunDir.set(sunPosition[0], sunPosition[1], sunPosition[2]).normalize()
       mat.uniforms.uSunDirection.value.copy(_sunDir)
@@ -236,9 +238,8 @@ export function Lighting() {
     }
 
     // --- Indoor fill lights ---
-    const indoorNightBoost = MathUtils.lerp(0.52, 0.18, daylight)
-    if (indoorFillARef.current) indoorFillARef.current.intensity = indoorNightBoost
-    if (indoorFillBRef.current) indoorFillBRef.current.intensity = MathUtils.lerp(0.46, 0.18, daylight)
+    if (indoorFillARef.current) indoorFillARef.current.intensity = MathUtils.lerp(0.6, 0.18, daylight)
+    if (indoorFillBRef.current) indoorFillBRef.current.intensity = MathUtils.lerp(0.55, 0.18, daylight)
     if (indoorFillCRef.current) indoorFillCRef.current.intensity = MathUtils.lerp(0.1, 0.36, moonlight)
     if (indoorFillDRef.current) indoorFillDRef.current.intensity = MathUtils.lerp(0.1, 0.32, moonlight)
 
@@ -287,7 +288,7 @@ export function Lighting() {
 
       {/* Sun orb + glow */}
       <mesh ref={sunOrbRef} position={[0, 10, CELESTIAL_ORBIT_CENTER_Z]}>
-        <sphereGeometry args={[0.95, 22, 18]} />
+        <sphereGeometry args={[0.95, 48, 32]} />
         <meshStandardMaterial
           ref={sunMaterialRef}
           color="#FDE68A"
@@ -305,7 +306,7 @@ export function Lighting() {
 
       {/* Moon orb + glow */}
       <mesh ref={moonOrbRef} position={[0, -8, CELESTIAL_ORBIT_CENTER_Z]}>
-        <sphereGeometry args={[0.72, 20, 16]} />
+        <sphereGeometry args={[0.72, 48, 32]} />
         <meshStandardMaterial
           ref={moonMaterialRef}
           color="#E2E8F0"

@@ -75,6 +75,13 @@ function makeParticles(type: CelebrationType): Particle[] {
     sx = 0.035;
     sy = 0.06;
     sz = 0.01;
+  } else if (type === "dance_party") {
+    colors = ["#f472b6", "#c084fc", "#818cf8", "#22d3ee", "#facc15", "#fb923c"];
+    spread = 2.0;
+    upForce = 3.8;
+    sx = 0.04;
+    sy = 0.04;
+    sz = 0.04;
   }
 
   return Array.from({ length: PARTICLE_COUNT }, () => ({

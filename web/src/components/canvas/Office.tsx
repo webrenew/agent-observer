@@ -4,7 +4,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, extend } from "@react-three/fiber";
 import { shaderMaterial } from "@react-three/drei";
 import type { AmbientLight, DirectionalLight, InstancedMesh, Mesh, MeshStandardMaterial, PointLight, ShaderMaterial } from "three";
-import { AdditiveBlending, BackSide, Color, FogExp2, MathUtils, Object3D, Vector3 } from "three";
+import { AdditiveBlending, BackSide, Color, DoubleSide, FogExp2, MathUtils, Object3D, Vector3 } from "three";
 import { useDemoStore } from "@/stores/useDemoStore";
 import { AgentCharacter } from "./AgentCharacter";
 import { CelebrationEffect } from "./CelebrationEffect";
@@ -25,7 +25,7 @@ const SIDE_WINDOW_POSITIONS = [-10.2, -5.4] as const;
 const BACK_WINDOW_SIZE = { width: 2, height: 1.4 } as const;
 const SIDE_WINDOW_SIZE = { width: 1.8, height: 1.25 } as const;
 const WINDOW_OPENING_PADDING = 0.2;
-const DAY_DURATION_SECONDS = 6 * 60 * 60;
+const DAY_DURATION_SECONDS = 8 * 60;
 const CELESTIAL_ORBIT_RADIUS_X = 24;
 const CELESTIAL_ORBIT_RADIUS_Y = 13;
 const CELESTIAL_ORBIT_CENTER_Y = 5;
@@ -34,20 +34,20 @@ const showOutdoorEnvironment = true;
 
 // Sky gradient color stops
 const SKY_ZENITH_DAY = new Color("#4A90D9");
-const SKY_ZENITH_NIGHT = new Color("#070B15");
+const SKY_ZENITH_NIGHT = new Color("#0B1026");
 const SKY_HORIZON_DAY = new Color("#B0D4F1");
-const SKY_HORIZON_NIGHT = new Color("#0E1428");
+const SKY_HORIZON_NIGHT = new Color("#141B3D");
 const SKY_HORIZON_GOLDEN = new Color("#E8955A");
 const SKY_GROUND_DAY = new Color("#8BA4B8");
-const SKY_GROUND_NIGHT = new Color("#12091E");
+const SKY_GROUND_NIGHT = new Color("#0D1225");
 const SUN_GLOW_COLOR = new Color("#FFD080");
 
 // Fog
 const FOG_DAY_COLOR = new Color("#C0D8E8");
 const FOG_GOLDEN_COLOR = new Color("#FFB88C");
-const FOG_NIGHT_COLOR = new Color("#1A1A3E");
-const FOG_DENSITY_DAY = 0.006;
-const FOG_DENSITY_NIGHT = 0.012;
+const FOG_NIGHT_COLOR = new Color("#111833");
+const FOG_DENSITY_DAY = 0.005;
+const FOG_DENSITY_NIGHT = 0.008;
 
 // Window tint
 const WINDOW_DAY_COLOR = new Color("#93C5FD");
@@ -145,6 +145,8 @@ const SCREEN_COLORS: Record<AgentStatus, { color: string; emissive: string; inte
 
 const PIZZA_CENTER: [number, number, number] = [0, 0, -6.35];
 const PIZZA_RADIUS = 1.75;
+const DANCE_CENTER: [number, number, number] = [0, 0, -5];
+const DANCE_RADIUS = 2.2;
 const SCENE_FOCAL_POINT: [number, number, number] = [0, 0, -6];
 const BASE_WORLD_CAPS = resolveWorldTierConfig(0).caps;
 type ExteriorPropType = "tree" | "bench" | "lamp" | "flower";
@@ -190,22 +192,58 @@ const OFFICE_PLANT_LAYOUT: PlantLayout[] = [
   { position: [6.9, 0, 2.4], scale: 0.84 },
 ];
 const EXTERIOR_PROP_LAYOUT: ExteriorPropLayout[] = [
+  // Near trees (close to office)
   { type: "tree", position: [-15.5, 0, -15.8], scale: 1.5 },
   { type: "tree", position: [15.5, 0, -15.8], scale: 1.5 },
   { type: "tree", position: [-15.5, 0, 5.8], scale: 1.35 },
   { type: "tree", position: [15.5, 0, 5.8], scale: 1.35 },
-  { type: "bench", position: [-13.4, 0, -6.2], rotation: [0, Math.PI / 2, 0], scale: 1.15 },
-  { type: "bench", position: [13.4, 0, -6.2], rotation: [0, -Math.PI / 2, 0], scale: 1.15 },
-  { type: "lamp", position: [-13.8, 0, -12], scale: 1 },
-  { type: "lamp", position: [13.8, 0, -12], scale: 1 },
-  { type: "flower", position: [-11.8, 0, 4.8], scale: 1.15 },
-  { type: "flower", position: [11.8, 0, 4.8], scale: 1.15 },
   { type: "tree", position: [-1.6, 0, 7.2], scale: 1.2 },
   { type: "tree", position: [1.6, 0, 7.2], scale: 1.2 },
+  // Near amenities
+  { type: "bench", position: [-13.4, 0, -6.2], rotation: [0, Math.PI / 2, 0], scale: 1.15 },
+  { type: "bench", position: [13.4, 0, -6.2], rotation: [0, -Math.PI / 2, 0], scale: 1.15 },
   { type: "bench", position: [0, 0, 7.8], rotation: [0, Math.PI, 0], scale: 1 },
+  { type: "lamp", position: [-13.8, 0, -12], scale: 1 },
+  { type: "lamp", position: [13.8, 0, -12], scale: 1 },
+  { type: "lamp", position: [0, 0, 8.9], scale: 0.92 },
+  { type: "flower", position: [-11.8, 0, 4.8], scale: 1.15 },
+  { type: "flower", position: [11.8, 0, 4.8], scale: 1.15 },
   { type: "flower", position: [-4.8, 0, 6.6], scale: 0.95 },
   { type: "flower", position: [4.8, 0, 6.6], scale: 0.95 },
-  { type: "lamp", position: [0, 0, 8.9], scale: 0.92 },
+  // Park trees (mid-distance ring)
+  { type: "tree", position: [-22, 0, -20], scale: 1.8 },
+  { type: "tree", position: [22, 0, -20], scale: 1.6 },
+  { type: "tree", position: [-20, 0, 10], scale: 1.7 },
+  { type: "tree", position: [20, 0, 10], scale: 1.5 },
+  { type: "tree", position: [-8, 0, 14], scale: 1.4 },
+  { type: "tree", position: [8, 0, 14], scale: 1.3 },
+  { type: "tree", position: [0, 0, -24], scale: 1.6 },
+  { type: "tree", position: [-14, 0, -24], scale: 1.45 },
+  { type: "tree", position: [14, 0, -24], scale: 1.55 },
+  // Park benches along paths
+  { type: "bench", position: [2.2, 0, 14], rotation: [0, 0, 0], scale: 1 },
+  { type: "bench", position: [-18, 0, -5], rotation: [0, Math.PI / 2, 0], scale: 1 },
+  { type: "bench", position: [18, 0, -5], rotation: [0, -Math.PI / 2, 0], scale: 1 },
+  // Park lamps along paths
+  { type: "lamp", position: [-16, 0, -5], scale: 1.05 },
+  { type: "lamp", position: [16, 0, -5], scale: 1.05 },
+  { type: "lamp", position: [0, 0, 16], scale: 0.95 },
+  { type: "lamp", position: [0, 0, -20], scale: 1 },
+  // Flower beds near pond
+  { type: "flower", position: [15.5, 0, -21], scale: 1.2 },
+  { type: "flower", position: [20.5, 0, -20], scale: 1.1 },
+  // Far trees (background depth)
+  { type: "tree", position: [-30, 0, -28], scale: 2.0 },
+  { type: "tree", position: [30, 0, -28], scale: 1.9 },
+  { type: "tree", position: [-28, 0, 15], scale: 1.8 },
+  { type: "tree", position: [28, 0, 15], scale: 1.7 },
+  { type: "tree", position: [-35, 0, -10], scale: 2.1 },
+  { type: "tree", position: [35, 0, -10], scale: 1.95 },
+  { type: "tree", position: [-18, 0, -32], scale: 1.7 },
+  { type: "tree", position: [18, 0, -32], scale: 1.85 },
+  { type: "tree", position: [0, 0, 20], scale: 1.6 },
+  { type: "tree", position: [-10, 0, 20], scale: 1.5 },
+  { type: "tree", position: [10, 0, 20], scale: 1.45 },
 ];
 
 function computeWallSegments(
@@ -251,13 +289,23 @@ function computePizzaSeat(index: number, total: number): [number, number, number
   ];
 }
 
+function computeDanceSeat(index: number, total: number): [number, number, number] {
+  const count = Math.max(3, total);
+  const angle = (index / count) * Math.PI * 2 - Math.PI / 2;
+  return [
+    DANCE_CENTER[0] + Math.cos(angle) * DANCE_RADIUS,
+    0,
+    DANCE_CENTER[2] + Math.sin(angle) * DANCE_RADIUS,
+  ];
+}
+
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
 function resolveCelestialState(elapsedSeconds: number) {
   const phase = (elapsedSeconds % DAY_DURATION_SECONDS) / DAY_DURATION_SECONDS;
-  const sunAngle = phase * Math.PI * 2 - Math.PI / 2;
+  const sunAngle = phase * Math.PI * 2 + Math.PI / 2;
   const moonAngle = sunAngle + Math.PI;
   const sunPosition: [number, number, number] = [
     Math.cos(sunAngle) * CELESTIAL_ORBIT_RADIUS_X,
@@ -562,12 +610,14 @@ function WallWindow({
 
   return (
     <group position={position} rotation={rotation}>
+      {/* Frame */}
       <mesh castShadow>
-        <boxGeometry args={[width + 0.25, height + 0.25, 0.06]} />
+        <boxGeometry args={[width + 0.25, height + 0.25, 0.08]} />
         <meshStandardMaterial color="#6B5A48" />
       </mesh>
-      <mesh position={[0, 0, 0.025]}>
-        <boxGeometry args={[width, height, 0.02]} />
+      {/* Glass — centered in frame so it's visible from both sides */}
+      <mesh>
+        <boxGeometry args={[width, height, 0.09]} />
         <meshStandardMaterial
           ref={glassRef}
           color="#93C5FD"
@@ -575,14 +625,16 @@ function WallWindow({
           emissiveIntensity={0.35}
           transparent
           opacity={0.8}
+          side={DoubleSide}
         />
       </mesh>
-      <mesh position={[0, 0, 0.035]}>
-        <boxGeometry args={[0.08, height, 0.03]} />
+      {/* Mullions — centered */}
+      <mesh>
+        <boxGeometry args={[0.08, height, 0.1]} />
         <meshStandardMaterial color="#5A4632" />
       </mesh>
-      <mesh position={[0, 0, 0.035]}>
-        <boxGeometry args={[width, 0.08, 0.03]} />
+      <mesh>
+        <boxGeometry args={[width, 0.08, 0.1]} />
         <meshStandardMaterial color="#5A4632" />
       </mesh>
     </group>
@@ -770,6 +822,35 @@ function StarField({ daylightRef }: { daylightRef: React.RefObject<number> }) {
   );
 }
 
+const RadialGlowMaterial = shaderMaterial(
+  { uColor: new Color("#FFD080"), uOpacity: 0.25 },
+  `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  `
+    uniform vec3 uColor;
+    uniform float uOpacity;
+    varying vec2 vUv;
+    void main() {
+      float dist = length(vUv - 0.5) * 2.0;
+      float alpha = smoothstep(1.0, 0.0, dist);
+      alpha *= alpha;
+      gl_FragColor = vec4(uColor, alpha * uOpacity);
+    }
+  `
+);
+extend({ RadialGlowMaterial });
+
+declare module "@react-three/fiber" {
+  interface ThreeElements {
+    radialGlowMaterial: ThreeElements["shaderMaterial"];
+  }
+}
+
 function CelestialGlow({
   targetRef,
   color,
@@ -785,6 +866,9 @@ function CelestialGlow({
 }) {
   const outerRef = useRef<Mesh>(null);
   const innerRef = useRef<Mesh>(null);
+  const outerMatRef = useRef<ShaderMaterial>(null);
+  const innerMatRef = useRef<ShaderMaterial>(null);
+  const glowColor = useMemo(() => new Color(color), [color]);
 
   useFrame(({ camera }) => {
     const target = targetRef.current;
@@ -797,22 +881,22 @@ function CelestialGlow({
       outerRef.current.position.set(pos.x, pos.y, pos.z);
       outerRef.current.quaternion.copy(camera.quaternion);
       outerRef.current.scale.setScalar(outerScale);
-      const mat = outerRef.current.material;
-      if ("opacity" in mat) {
-        (mat as { opacity: number }).opacity = fadeOpacity * 0.25;
-      }
       outerRef.current.visible = fadeOpacity > 0.01;
+    }
+    if (outerMatRef.current) {
+      outerMatRef.current.uniforms.uOpacity.value = fadeOpacity * 0.35;
+      outerMatRef.current.uniforms.uColor.value.copy(glowColor);
     }
 
     if (innerRef.current) {
       innerRef.current.position.set(pos.x, pos.y, pos.z);
       innerRef.current.quaternion.copy(camera.quaternion);
       innerRef.current.scale.setScalar(innerScale);
-      const mat = innerRef.current.material;
-      if ("opacity" in mat) {
-        (mat as { opacity: number }).opacity = fadeOpacity * 0.4;
-      }
       innerRef.current.visible = fadeOpacity > 0.01;
+    }
+    if (innerMatRef.current) {
+      innerMatRef.current.uniforms.uOpacity.value = fadeOpacity * 0.55;
+      innerMatRef.current.uniforms.uColor.value.copy(glowColor);
     }
   });
 
@@ -820,20 +904,18 @@ function CelestialGlow({
     <>
       <mesh ref={outerRef}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial
-          color={color}
+        <radialGlowMaterial
+          ref={outerMatRef}
           transparent
-          opacity={0.25}
           blending={AdditiveBlending}
           depthWrite={false}
         />
       </mesh>
       <mesh ref={innerRef}>
         <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial
-          color={color}
+        <radialGlowMaterial
+          ref={innerMatRef}
           transparent
-          opacity={0.4}
           blending={AdditiveBlending}
           depthWrite={false}
         />
@@ -973,47 +1055,40 @@ function YardBorderShrubs() {
   );
 }
 
-function ExteriorCampusBackdrop({
-  showBlueSky,
-  richEnvironment,
+function ParkPath({
+  from,
+  to,
+  width = 1.2,
 }: {
-  showBlueSky: boolean;
-  richEnvironment: boolean;
+  from: [number, number];
+  to: [number, number];
+  width?: number;
 }) {
-  const skyColor = showBlueSky
-    ? richEnvironment
-      ? "#B8E0FF"
-      : "#CDE8FF"
-    : "#CBD5E1";
-  const skylineColor = richEnvironment ? "#7C8FA4" : "#94A3B8";
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const length = Math.sqrt(dx * dx + dz * dz);
+  const angle = Math.atan2(dx, dz);
+  const cx = (from[0] + to[0]) / 2;
+  const cz = (from[1] + to[1]) / 2;
 
   return (
-    <group>
-      <mesh position={[0, 3.2, -20]}>
-        <planeGeometry args={[38, 8]} />
-        <meshStandardMaterial color={skyColor} emissive={skyColor} emissiveIntensity={0.18} />
+    <mesh rotation={[-Math.PI / 2, 0, angle]} position={[cx, -0.008, cz]} receiveShadow>
+      <planeGeometry args={[width, length]} />
+      <meshStandardMaterial color="#C4A882" />
+    </mesh>
+  );
+}
+
+function ParkPond({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
+        <circleGeometry args={[2.2, 32]} />
+        <meshStandardMaterial color="#5B9BD5" transparent opacity={0.75} />
       </mesh>
-      <mesh position={[0, 0.9, -18.8]} receiveShadow>
-        <boxGeometry args={[24, 1.8, 0.9]} />
-        <meshStandardMaterial color={showBlueSky ? "#A0AEC0" : "#9CA3AF"} />
-      </mesh>
-      {[-8.6, -5.2, -2.1, 1.4, 4.7, 8.1].map((x, index) => (
-        <mesh
-          key={`backdrop-building-${index}`}
-          position={[x, 1.7 + (index % 3) * 0.32, -18.15 - (index % 2) * 0.22]}
-          receiveShadow
-        >
-          <boxGeometry args={[1.75, 2.1 + (index % 3) * 0.58, 0.62]} />
-          <meshStandardMaterial color={index % 2 === 0 ? skylineColor : "#64748B"} />
-        </mesh>
-      ))}
-      <mesh position={[-18.7, 2.1, -5]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[24, 6]} />
-        <meshStandardMaterial color={skyColor} emissive={skyColor} emissiveIntensity={0.09} />
-      </mesh>
-      <mesh position={[18.7, 2.1, -5]} rotation={[0, -Math.PI / 2, 0]}>
-        <planeGeometry args={[24, 6]} />
-        <meshStandardMaterial color={skyColor} emissive={skyColor} emissiveIntensity={0.09} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+        <circleGeometry args={[2.5, 32]} />
+        <meshStandardMaterial color="#4A7A5A" />
       </mesh>
     </group>
   );
@@ -1234,6 +1309,24 @@ export function Office() {
     (latest, agent) => Math.max(latest, agent.celebrationStartedAt ?? 0),
     0
   );
+  const danceAgents = useMemo(
+    () =>
+      visibleAgents
+        .filter((agent) => agent.activeCelebration === "dance_party")
+        .sort((a, b) => a.deskIndex - b.deskIndex),
+    [visibleAgents]
+  );
+  const danceSeatByAgentId = useMemo(() => {
+    const map = new Map<string, [number, number, number]>();
+    for (let index = 0; index < danceAgents.length; index += 1) {
+      map.set(danceAgents[index].id, computeDanceSeat(index, danceAgents.length));
+    }
+    return map;
+  }, [danceAgents]);
+  const danceStartedAt = danceAgents.reduce(
+    (latest, agent) => Math.max(latest, agent.celebrationStartedAt ?? 0),
+    0
+  );
 
   useFrame(({ clock, scene: frameScene }) => {
     const t = clock.getElapsedTime();
@@ -1264,21 +1357,21 @@ export function Office() {
     }
     if (moonLightRef.current) {
       moonLightRef.current.position.set(moonPosition[0], moonPosition[1], moonPosition[2]);
-      moonLightRef.current.intensity = MathUtils.lerp(0.06, 0.42, moonlight);
+      moonLightRef.current.intensity = MathUtils.lerp(0.08, 0.5, moonlight);
     }
     if (ambientLightRef.current) {
-      ambientLightRef.current.intensity = MathUtils.lerp(0.2, 0.58, daylight);
+      ambientLightRef.current.intensity = MathUtils.lerp(0.28, 0.58, daylight);
       ambientLightRef.current.color.setRGB(
-        MathUtils.lerp(0.3, 1, daylight),
-        MathUtils.lerp(0.35, 0.98, daylight),
-        MathUtils.lerp(0.5, 0.92, daylight)
+        MathUtils.lerp(0.22, 1, daylight),
+        MathUtils.lerp(0.26, 0.98, daylight),
+        MathUtils.lerp(0.52, 0.92, daylight)
       );
     }
     if (indoorFillARef.current) {
-      indoorFillARef.current.intensity = MathUtils.lerp(0.52, 0.18, daylight);
+      indoorFillARef.current.intensity = MathUtils.lerp(0.6, 0.18, daylight);
     }
     if (indoorFillBRef.current) {
-      indoorFillBRef.current.intensity = MathUtils.lerp(0.46, 0.18, daylight);
+      indoorFillBRef.current.intensity = MathUtils.lerp(0.55, 0.18, daylight);
     }
 
     // Gradient sky shader uniforms
@@ -1295,6 +1388,8 @@ export function Office() {
 
       _ground.copy(SKY_GROUND_NIGHT).lerp(SKY_GROUND_DAY, daylight);
       mat.uniforms.uGroundColor.value.copy(_ground);
+
+      frameScene.background = _horizon;
 
       _sunDir.set(sunPosition[0], sunPosition[1], sunPosition[2]).normalize();
       mat.uniforms.uSunDirection.value.copy(_sunDir);
@@ -1374,7 +1469,7 @@ export function Office() {
       <pointLight ref={indoorFillBRef} position={[4, 3, -9]} intensity={0.3} color="#FFE4B5" />
 
       <mesh ref={sunOrbRef} position={[0, 10, CELESTIAL_ORBIT_CENTER_Z]}>
-        <sphereGeometry args={[0.95, 22, 18]} />
+        <sphereGeometry args={[0.95, 48, 32]} />
         <meshStandardMaterial
           ref={sunMaterialRef}
           color="#FDE68A"
@@ -1390,7 +1485,7 @@ export function Office() {
         innerScale={2.2}
       />
       <mesh ref={moonOrbRef} position={[0, -8, CELESTIAL_ORBIT_CENTER_Z]}>
-        <sphereGeometry args={[0.72, 20, 16]} />
+        <sphereGeometry args={[0.72, 48, 32]} />
         <meshStandardMaterial
           ref={moonMaterialRef}
           color="#E2E8F0"
@@ -1408,26 +1503,29 @@ export function Office() {
 
       {showOutdoorEnvironment && (
         <>
+          {/* Large park ground */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, -5]} receiveShadow>
-            <planeGeometry args={[42, 36]} />
+            <planeGeometry args={[120, 100]} />
+            <meshStandardMaterial color={exteriorVisibility.richEnvironment ? "#6DAF55" : "#5FA84A"} />
+          </mesh>
+          {/* Lighter grass ring around the office */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, -5]} receiveShadow>
+            <planeGeometry args={[60, 50]} />
             <meshStandardMaterial color={exteriorVisibility.richEnvironment ? "#7FBD65" : "#6FAF55"} />
           </mesh>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, -5]} receiveShadow>
-            <planeGeometry args={[28, 24]} />
-            <meshStandardMaterial
-              color={exteriorVisibility.richEnvironment ? "#D6C39A" : "#CBB58B"}
-              transparent
-              opacity={0.75}
-            />
-          </mesh>
+          {/* Walking paths */}
+          <ParkPath from={[0, 4]} to={[0, 25]} width={1.4} />
+          <ParkPath from={[0, -14]} to={[0, -35]} width={1.4} />
+          <ParkPath from={[-11, -5]} to={[-35, -5]} width={1.2} />
+          <ParkPath from={[11, -5]} to={[35, -5]} width={1.2} />
+          {/* Diagonal park paths */}
+          <ParkPath from={[11, 4]} to={[28, 18]} width={1.0} />
+          <ParkPath from={[-11, 4]} to={[-28, 18]} width={1.0} />
+          {/* Pond */}
+          <ParkPond position={[18, 0, -22]} />
           <YardBorderShrubs />
         </>
       )}
-
-      <ExteriorCampusBackdrop
-        showBlueSky={showOutdoorEnvironment}
-        richEnvironment={exteriorVisibility.richEnvironment}
-      />
 
       {/* Floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -5]} receiveShadow>
@@ -1527,7 +1625,14 @@ export function Office() {
       {visibleAgents.map((agent) => {
         const layout = deskLayout[agent.deskIndex];
         if (!layout) return null;
-        const partyTarget = partySeatByAgentId.get(agent.id) ?? null;
+        const partyTarget = partySeatByAgentId.get(agent.id)
+          ?? danceSeatByAgentId.get(agent.id)
+          ?? null;
+        const lookAt = partySeatByAgentId.has(agent.id)
+          ? PIZZA_CENTER
+          : danceSeatByAgentId.has(agent.id)
+            ? DANCE_CENTER
+            : null;
         return (
           <group key={agent.id}>
             <Desk
@@ -1540,9 +1645,11 @@ export function Office() {
               position={layout.facing}
               rotation={[0, 0, 0]}
               partyTargetPosition={partyTarget}
-              partyLookAtPosition={PIZZA_CENTER}
+              partyLookAtPosition={lookAt}
             />
-            {agent.activeCelebration && agent.celebrationStartedAt && agent.activeCelebration !== "pizza_party" && (
+            {agent.activeCelebration && agent.celebrationStartedAt
+              && agent.activeCelebration !== "pizza_party"
+              && agent.activeCelebration !== "dance_party" && (
               <CelebrationEffect
                 type={agent.activeCelebration}
                 startedAt={agent.celebrationStartedAt}
@@ -1602,6 +1709,46 @@ export function Office() {
               type="pizza_party"
               startedAt={partyStartedAt}
               position={PIZZA_CENTER}
+            />
+          )}
+        </group>
+      )}
+
+      {danceAgents.length > 0 && (
+        <group>
+          {/* Dance floor — colorful tiles */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[DANCE_CENTER[0], 0.005, DANCE_CENTER[2]]}>
+            <circleGeometry args={[DANCE_RADIUS + 0.6, 32]} />
+            <meshStandardMaterial color="#2A1B3D" />
+          </mesh>
+          {Array.from({ length: 8 }, (_, i) => {
+            const tileAngle = (i / 8) * Math.PI * 2;
+            const tileColors = ["#c084fc", "#818cf8", "#f472b6", "#22d3ee", "#facc15", "#fb923c", "#4ade80", "#f87171"];
+            return (
+              <mesh
+                key={`dance-tile-${i}`}
+                rotation={[-Math.PI / 2, 0, 0]}
+                position={[
+                  DANCE_CENTER[0] + Math.cos(tileAngle) * 1.3,
+                  0.008,
+                  DANCE_CENTER[2] + Math.sin(tileAngle) * 1.3,
+                ]}
+              >
+                <boxGeometry args={[0.6, 0.6, 0.003]} />
+                <meshStandardMaterial
+                  color={tileColors[i]}
+                  emissive={tileColors[i]}
+                  emissiveIntensity={0.5}
+                />
+              </mesh>
+            );
+          })}
+          {danceStartedAt > 0 && (
+            <CelebrationEffect
+              key={`dance-party-${danceStartedAt}`}
+              type="dance_party"
+              startedAt={danceStartedAt}
+              position={DANCE_CENTER}
             />
           )}
         </group>

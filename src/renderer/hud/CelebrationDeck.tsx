@@ -34,6 +34,12 @@ const ACTIONS: ActionButton[] = [
     note: 'Paper tray overclocked',
     accent: '#34d399',
   },
+  {
+    id: 'dance_party',
+    label: 'Dance Party',
+    note: 'Disco mode activated',
+    accent: '#c084fc',
+  },
 ]
 
 const ACTION_DURATION_MS: Record<CelebrationType, number> = {
@@ -46,6 +52,7 @@ const ACTION_DURATION_MS: Record<CelebrationType, number> = {
   floppy_rain: 3800,
   dialup_wave: 3400,
   fax_blast: 3200,
+  dance_party: 5000,
 }
 
 const ACTION_REWARD_POINTS: Partial<Record<CelebrationType, number>> = {

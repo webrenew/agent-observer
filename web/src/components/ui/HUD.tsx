@@ -1078,6 +1078,7 @@ const PARTY_ACTIONS: PartyAction[] = [
   { id: "floppy_rain", label: "Floppy Rain", note: "3.5-inch victory storm", accent: "#60a5fa" },
   { id: "dialup_wave", label: "Dial-Up Wave", note: "Modem handshake complete", accent: "#a78bfa" },
   { id: "fax_blast", label: "Fax Blast", note: "Paper tray overclocked", accent: "#34d399" },
+  { id: "dance_party", label: "Dance Party", note: "Disco mode activated", accent: "#c084fc" },
 ];
 const PARTY_ACTION_DURATION_MS: Record<CelebrationType, number> = {
   confetti: 4000,
@@ -1089,6 +1090,7 @@ const PARTY_ACTION_DURATION_MS: Record<CelebrationType, number> = {
   floppy_rain: 3800,
   dialup_wave: 3400,
   fax_blast: 3200,
+  dance_party: 5000,
 };
 
 function PartyDeck() {

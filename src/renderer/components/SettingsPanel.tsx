@@ -1063,7 +1063,7 @@ export function SettingsPanel() {
                       type="text"
                       value={rule.pathPrefix}
                       onChange={(e) => updateClaudeWorkspaceRule(rule.id, { pathPrefix: e.target.value })}
-                      placeholder="/Users/tradecraft/dev/work-project"
+                      placeholder="/path/to/your/project"
                       style={{
                         flex: 1,
                         background: 'rgba(89,86,83,0.15)',

@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { MeshStandardMaterial } from 'three'
+import { DoubleSide } from 'three'
 import { registerWindowGlass } from './window-glass-registry'
 
 const WALL_COLOR = '#e8e0d8'
@@ -69,12 +70,14 @@ function WallWindow({
 
   return (
     <group position={position} rotation={rotation}>
+      {/* Frame */}
       <mesh castShadow>
-        <boxGeometry args={[width + 0.25, height + 0.25, 0.06]} />
+        <boxGeometry args={[width + 0.25, height + 0.25, 0.08]} />
         <meshStandardMaterial color="#6b5a48" />
       </mesh>
-      <mesh position={[0, 0, 0.025]}>
-        <boxGeometry args={[width, height, 0.02]} />
+      {/* Glass — centered in frame so it's visible from both sides */}
+      <mesh>
+        <boxGeometry args={[width, height, 0.09]} />
         <meshStandardMaterial
           ref={glassRef}
           color="#93c5fd"
@@ -82,14 +85,16 @@ function WallWindow({
           emissiveIntensity={0.35}
           transparent
           opacity={0.8}
+          side={DoubleSide}
         />
       </mesh>
-      <mesh position={[0, 0, 0.035]}>
-        <boxGeometry args={[0.08, height, 0.03]} />
+      {/* Mullions — centered */}
+      <mesh>
+        <boxGeometry args={[0.08, height, 0.1]} />
         <meshStandardMaterial color="#5a4632" />
       </mesh>
-      <mesh position={[0, 0, 0.035]}>
-        <boxGeometry args={[width, 0.08, 0.03]} />
+      <mesh>
+        <boxGeometry args={[width, 0.08, 0.1]} />
         <meshStandardMaterial color="#5a4632" />
       </mesh>
     </group>
@@ -174,39 +179,6 @@ function WallWithWindowOpenings({
   )
 }
 
-function ExteriorCampusBackdrop() {
-  return (
-    <group>
-      <mesh position={[0, 3.2, -20]}>
-        <planeGeometry args={[38, 8]} />
-        <meshStandardMaterial color="#b8e0ff" emissive="#bfdbfe" emissiveIntensity={0.18} />
-      </mesh>
-      <mesh position={[0, 0.9, -18.8]} receiveShadow>
-        <boxGeometry args={[24, 1.8, 0.9]} />
-        <meshStandardMaterial color="#9ca3af" />
-      </mesh>
-      {[-8.6, -5.2, -2.1, 1.4, 4.7, 8.1].map((x, index) => (
-        <mesh
-          key={`backdrop-building-${index}`}
-          position={[x, 1.7 + (index % 3) * 0.32, -18.15 - (index % 2) * 0.22]}
-          receiveShadow
-        >
-          <boxGeometry args={[1.75, 2.1 + (index % 3) * 0.58, 0.62]} />
-          <meshStandardMaterial color={index % 2 === 0 ? '#7c8fa4' : '#64748b'} />
-        </mesh>
-      ))}
-      <mesh position={[-18.7, 2.1, -5]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[24, 6]} />
-        <meshStandardMaterial color="#b8e0ff" emissive="#bfdbfe" emissiveIntensity={0.09} />
-      </mesh>
-      <mesh position={[18.7, 2.1, -5]} rotation={[0, -Math.PI / 2, 0]}>
-        <planeGeometry args={[24, 6]} />
-        <meshStandardMaterial color="#b8e0ff" emissive="#bfdbfe" emissiveIntensity={0.09} />
-      </mesh>
-    </group>
-  )
-}
-
 function YardBorderShrubs() {
   const shrubPositions: [number, number, number][] = [
     [-10.4, 0, -15.9],
@@ -234,17 +206,17 @@ function YardBorderShrubs() {
 export function Room() {
   return (
     <group>
-      {/* Little yard around the office */}
+      {/* Large park ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, -5]} receiveShadow>
-        <planeGeometry args={[42, 36]} />
-        <meshStandardMaterial color="#7fbd65" />
+        <planeGeometry args={[120, 100]} />
+        <meshStandardMaterial color="#6DAF55" />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, -5]} receiveShadow>
-        <planeGeometry args={[28, 24]} />
-        <meshStandardMaterial color="#d6c39a" transparent opacity={0.75} />
+      {/* Lighter grass ring around the office */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, -5]} receiveShadow>
+        <planeGeometry args={[60, 50]} />
+        <meshStandardMaterial color="#7FBD65" />
       </mesh>
       <YardBorderShrubs />
-      <ExteriorCampusBackdrop />
 
       {/* Office floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -5]} receiveShadow>
