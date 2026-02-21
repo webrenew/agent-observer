@@ -35,6 +35,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `/download` now scans recent releases for the newest available `.dmg`.
 - Release automation now uploads `latest-mac.yml` and `.dmg.blockmap` metadata
   assets required by in-app auto-updates.
+- Packaged builds now re-check for updates periodically after startup, and the
+  in-app update banner appears as soon as an update is available/downloading.
 
 ## [1.1.0] - 2026-02-15
 
