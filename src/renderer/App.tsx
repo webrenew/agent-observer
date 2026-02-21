@@ -123,7 +123,7 @@ export function App() {
       return `Update available${versionSuffix}. Downloading…${progressText}`
     }
 
-    return `Update available${versionSuffix}. Downloading…`
+    return `Update available${versionSuffix}.`
   }, [normalizedLatestVersion, updateStatus])
 
   return (
