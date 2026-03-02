@@ -51,6 +51,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   writing binary preview/save content.
 - Blocked unsafe filesystem rename targets (`.`, `..`, and empty names) to
   prevent accidental path traversal behavior.
+- Raised dependency override for `minimatch` to `>=10.2.3` to satisfy
+  high-severity audit checks in CI.
 
 ## [1.1.0] - 2026-02-15
 
