@@ -143,6 +143,22 @@ const chatWindows = new Map<string, BrowserWindow>()
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['https:', 'http:'])
 const DEFAULT_SHUTDOWN_STEP_TIMEOUT_MS = 15_000
 const DEFAULT_SHUTDOWN_TOTAL_TIMEOUT_MS = 60_000
+let mainWindow: BrowserWindow | null = null
+
+function getLiveMainWindow(): BrowserWindow | null {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return null
+  }
+  return mainWindow
+}
+
+function focusMainWindow(): boolean {
+  const activeMainWindow = getLiveMainWindow()
+  if (!activeMainWindow) return false
+  if (activeMainWindow.isMinimized()) activeMainWindow.restore()
+  activeMainWindow.focus()
+  return true
+}
 
 function resolveShutdownTimeoutMs(envVarName: string, fallbackMs: number): number {
   const rawValue = process.env[envVarName]
@@ -209,7 +225,7 @@ function openExternalUrlIfAllowed(url: string, source: 'main_window' | 'chat_pop
   })
 }
 
-function createChatWindow(sessionId: string, mainWindow: BrowserWindow): BrowserWindow {
+function createChatWindow(sessionId: string): BrowserWindow {
   addStartupBreadcrumb('chat.popout.create', { sessionId })
   const chatWin = new BrowserWindow({
     width: 600,
@@ -248,9 +264,10 @@ function createChatWindow(sessionId: string, mainWindow: BrowserWindow): Browser
   chatWin.on('closed', () => {
     chatWindows.delete(sessionId)
     recordTelemetryEvent('chat.popout.closed', { sessionId })
-    // Notify main window the session was returned
-    if (!mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('chat:returned', sessionId)
+    const activeMainWindow = getLiveMainWindow()
+    // Notify the current main window that the session was returned.
+    if (activeMainWindow) {
+      activeMainWindow.webContents.send('chat:returned', sessionId)
     }
   })
 
@@ -263,7 +280,6 @@ addStartupBreadcrumb('app.single_instance_lock', { acquired: gotTheLock })
 if (!gotTheLock) {
   app.quit()
 } else {
-  let mainWindow: BrowserWindow | null = null
   let chatPopoutHandlerRegistered = false
   let rendererCrashStreak = 0
   let rendererCrashStreakWindowStart = 0
@@ -320,10 +336,10 @@ if (!gotTheLock) {
 
   app.on('second-instance', () => {
     recordTelemetryEvent('app.second_instance')
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
+    if (focusMainWindow()) {
+      return
     }
+    createWindow()
   })
 
   function setupChatPopoutHandler(): void {
@@ -331,13 +347,13 @@ if (!gotTheLock) {
     chatPopoutHandlerRegistered = true
 
     ipcMain.handle('chat:popout', (_event, sessionId: unknown) => {
-      if (typeof sessionId !== 'string' || !mainWindow) return
+      if (typeof sessionId !== 'string' || !getLiveMainWindow()) return
       // Don't create duplicate windows
       if (chatWindows.has(sessionId)) {
         chatWindows.get(sessionId)?.focus()
         return
       }
-      createChatWindow(sessionId, mainWindow)
+      createChatWindow(sessionId)
     })
   }
 
@@ -355,7 +371,7 @@ if (!gotTheLock) {
       }
     }
 
-    mainWindow = new BrowserWindow({
+    const window = new BrowserWindow({
       width: 1400,
       height: 900,
       minWidth: 800,
@@ -369,13 +385,20 @@ if (!gotTheLock) {
         sandbox: false
       }
     })
+    mainWindow = window
 
-    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    window.webContents.setWindowOpenHandler(({ url }) => {
       openExternalUrlIfAllowed(url, 'main_window')
       return { action: 'deny' }
     })
 
-    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    window.on('closed', () => {
+      if (mainWindow === window) {
+        mainWindow = null
+      }
+    })
+
+    window.webContents.on('render-process-gone', (_event, details) => {
       recordTelemetryEvent('renderer.process_gone', {
         reason: details.reason,
         exitCode: details.exitCode,
@@ -400,7 +423,7 @@ if (!gotTheLock) {
         return
       }
 
-      const target = mainWindow
+      const target = window
       setTimeout(() => {
         if (!target || target.isDestroyed()) return
         try {
@@ -419,24 +442,24 @@ if (!gotTheLock) {
     })
 
     runStartupStep('diagnostics_handlers', () => setupDiagnosticsHandlers())
-    runStartupStep('terminal_handlers', () => setupTerminalHandlers(mainWindow!))
-    runStartupStep('claude_handlers', () => setupClaudeSessionHandlers(mainWindow!))
+    runStartupStep('terminal_handlers', () => setupTerminalHandlers(window))
+    runStartupStep('claude_handlers', () => setupClaudeSessionHandlers(window))
     runStartupStep('settings_handlers', () => setupSettingsHandlers())
     flushStartupBreadcrumbs()
-    runStartupStep('filesystem_handlers', () => setupFilesystemHandlers(mainWindow!))
+    runStartupStep('filesystem_handlers', () => setupFilesystemHandlers(window))
     runStartupStep('workspace_context_handlers', () => setupWorkspaceContextHandlers())
     runStartupStep('update_handlers', () => setupUpdateHandlers())
-    runStartupStep('lsp_handlers', () => setupLspHandlers(mainWindow!))
+    runStartupStep('lsp_handlers', () => setupLspHandlers(window))
     runStartupStep('memories_handlers', () => setupMemoriesHandlers())
-    runStartupStep('agent_namer_handlers', () => setupAgentNamerHandlers(mainWindow!))
+    runStartupStep('agent_namer_handlers', () => setupAgentNamerHandlers(window))
     runStartupStep('scheduler_handlers', () => setupSchedulerHandlers())
     runStartupStep('todo_runner_handlers', () => setupTodoRunnerHandlers())
-    runStartupStep('menu', () => createApplicationMenu(mainWindow!))
+    runStartupStep('menu', () => createApplicationMenu(window))
     runStartupStep('chat_popout_handler', () => setupChatPopoutHandler())
 
     const loadRendererPromise = process.env['ELECTRON_RENDERER_URL']
-      ? mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-      : mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
+      ? window.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      : window.loadFile(path.join(__dirname, '../renderer/index.html'))
 
     loadRendererPromise.catch((err) => {
       recordException('window.load_failed', err)
@@ -559,12 +582,16 @@ if (!gotTheLock) {
     createWindow()
 
     app.on('activate', () => {
+      const hasLiveMainWindow = getLiveMainWindow() !== null
       recordTelemetryEvent('app.activate', {
+        hasLiveMainWindow,
         windowCount: BrowserWindow.getAllWindows().length,
       })
-      if (BrowserWindow.getAllWindows().length === 0) {
+      if (!hasLiveMainWindow) {
         createWindow()
+        return
       }
+      focusMainWindow()
     })
   }).catch((err) => {
     recordException('app.whenReady', err)
