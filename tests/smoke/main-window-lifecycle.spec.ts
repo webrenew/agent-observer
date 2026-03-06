@@ -26,7 +26,7 @@ async function waitForAdditionalWindow(
   return nextWindow as Page
 }
 
-test('main window can be recovered from popout-only state and popout returns route to the replacement window', async () => {
+test('desktop smoke flows: main window can be recovered from popout-only state and popout returns route to the replacement window', async () => {
   const tempUserDataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-observer-userdata-'))
   const tempHomeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-observer-home-'))
 
