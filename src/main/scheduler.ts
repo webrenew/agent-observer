@@ -1586,11 +1586,12 @@ function startSchedulerLoop(): void {
 }
 
 export function setupSchedulerHandlers(): void {
+  if (handlersRegistered) return
+
   schedulerShuttingDown = false
   loadTasksCache()
   startSchedulerLoop()
 
-  if (handlersRegistered) return
   handlersRegistered = true
 
   ipcMain.handle('scheduler:list', () => {

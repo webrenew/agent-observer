@@ -1324,11 +1324,12 @@ function startTodoRunnerLoop(): void {
 }
 
 export function setupTodoRunnerHandlers(): void {
+  if (handlersRegistered) return
+
   todoRunnerShuttingDown = false
   loadJobsCache()
   startTodoRunnerLoop()
 
-  if (handlersRegistered) return
   handlersRegistered = true
 
   ipcMain.handle('todoRunner:list', () => {
