@@ -42,6 +42,7 @@
     ],
     "overrides": {
       "@hono/node-server": "1.19.10",
+      "express-rate-limit": "8.3.0",
       "hono": "4.12.4",
       "tar": "7.5.10",
       "minimatch": ">=10.2.3",

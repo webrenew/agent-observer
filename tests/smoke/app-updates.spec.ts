@@ -3,6 +3,7 @@ import {
   __testOnlyCompareSemver,
   __testOnlyIsUpdateAvailable,
   __testOnlyShouldStartPackagedUpdateCheck,
+  __testOnlyShouldUseNativePackagedUpdater,
 } from '../../src/main/app-updates'
 
 test('semver comparison handles v-prefix and major/minor/patch ordering', () => {
@@ -38,4 +39,10 @@ test('packaged updater cadence helper enforces interval boundary', () => {
   expect(__testOnlyShouldStartPackagedUpdateCheck(29_999, 0, 30_000)).toBe(false)
   expect(__testOnlyShouldStartPackagedUpdateCheck(100_000, 75_000, 30_000)).toBe(false)
   expect(__testOnlyShouldStartPackagedUpdateCheck(105_000, 75_000, 30_000)).toBe(true)
+})
+
+test('native packaged updater is disabled for macOS builds without zip artifacts', () => {
+  expect(__testOnlyShouldUseNativePackagedUpdater(true, 'darwin')).toBe(false)
+  expect(__testOnlyShouldUseNativePackagedUpdater(true, 'win32')).toBe(true)
+  expect(__testOnlyShouldUseNativePackagedUpdater(false, 'linux')).toBe(false)
 })

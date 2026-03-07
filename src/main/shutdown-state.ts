@@ -15,6 +15,10 @@ export function markAppShuttingDown(): void {
   appShuttingDown = true
 }
 
+export function clearAppShuttingDown(): void {
+  appShuttingDown = false
+}
+
 export function isAppShuttingDown(): boolean {
   return appShuttingDown
 }
@@ -25,5 +29,5 @@ export function assertAppNotShuttingDown(operation: string): void {
 }
 
 export function __testOnlyResetAppShutdownState(): void {
-  appShuttingDown = false
+  clearAppShuttingDown()
 }

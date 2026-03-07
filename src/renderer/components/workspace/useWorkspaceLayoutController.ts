@@ -26,6 +26,9 @@ import {
 
 const WORKSPACE_LAYOUT_STATE_KEY = 'agent-observer:workspaceLayoutState'
 const LAYOUT_DIVIDER_SIZE = 5
+const FILE_PREVIEW_READY_EVENT = 'file:preview-ready'
+const FILE_PREVIEW_DISPOSED_EVENT = 'file:preview-disposed'
+const FILE_PREVIEW_READY_TIMEOUT_MS = 5000
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -225,6 +228,7 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
     () => hydratedWorkspaceLayoutState.activeTabs
   )
   const containerRef = useRef<HTMLDivElement>(null)
+  const isFilePreviewReadyRef = useRef(false)
 
   const visiblePanels = findAllPanelsInLayout(layout)
 
@@ -543,6 +547,54 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
     }) as EventListener
     window.addEventListener('agent:focusTerminal', handler)
     return () => window.removeEventListener('agent:focusTerminal', handler)
+  }, [focusPanel])
+
+  useEffect(() => {
+    const readyHandler = (() => {
+      isFilePreviewReadyRef.current = true
+    }) as EventListener
+    const disposedHandler = (() => {
+      isFilePreviewReadyRef.current = false
+    }) as EventListener
+
+    window.addEventListener(FILE_PREVIEW_READY_EVENT, readyHandler)
+    window.addEventListener(FILE_PREVIEW_DISPOSED_EVENT, disposedHandler)
+    return () => {
+      window.removeEventListener(FILE_PREVIEW_READY_EVENT, readyHandler)
+      window.removeEventListener(FILE_PREVIEW_DISPOSED_EVENT, disposedHandler)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleOpenRequest = ((event: Event) => {
+      const detail = (event as CustomEvent<string | { path: string }>).detail
+      if (!detail) return
+      focusPanel('filePreview')
+
+      if (isFilePreviewReadyRef.current) {
+        window.dispatchEvent(new CustomEvent('file:open', { detail }))
+        return
+      }
+
+      let openDispatched = false
+      const readyHandler = (() => {
+        openDispatched = true
+        isFilePreviewReadyRef.current = true
+        window.dispatchEvent(new CustomEvent('file:open', { detail }))
+      }) as EventListener
+
+      window.addEventListener(FILE_PREVIEW_READY_EVENT, readyHandler, { once: true })
+      window.setTimeout(() => {
+        if (openDispatched) return
+        window.removeEventListener(FILE_PREVIEW_READY_EVENT, readyHandler)
+        console.error('[WorkspaceLayout] File preview was not ready before open timeout')
+      }, FILE_PREVIEW_READY_TIMEOUT_MS)
+    }) as EventListener
+
+    window.addEventListener('file:open-request', handleOpenRequest)
+    return () => {
+      window.removeEventListener('file:open-request', handleOpenRequest)
+    }
   }, [focusPanel])
 
   useEffect(() => {

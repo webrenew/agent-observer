@@ -22,7 +22,7 @@ import { ChatPanelWrapper } from './panels/ChatPanelWrapper'
 import { TerminalPanelWrapper } from './panels/TerminalPanelWrapper'
 
 function dispatchFileOpen(filePath: string): void {
-  window.dispatchEvent(new CustomEvent('file:open', { detail: filePath }))
+  window.dispatchEvent(new CustomEvent('file:open-request', { detail: filePath }))
 }
 
 const LazyScenePanel = lazy(async () => {
