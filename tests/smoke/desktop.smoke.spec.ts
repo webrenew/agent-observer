@@ -535,6 +535,8 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
 
     tempFolder = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-observer-smoke-'))
     const tempFolderName = path.basename(tempFolder)
+    const tempEditorFile = path.join(tempFolder, 'smoke-open.txt')
+    await fs.writeFile(tempEditorFile, 'desktop smoke file open regression\n')
 
     await electronApp.evaluate(({ BrowserWindow }, folderPath) => {
       const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
@@ -545,6 +547,19 @@ test('desktop smoke flows: launch, reopen, folder scope, popout, terminal', asyn
     await expect(mainWindow.locator(`[title="${tempFolder}"]`).first()).toBeVisible()
     await expect(mainWindow.locator('[title="Directory mode: workspace"]').first()).toBeVisible()
     await expect(mainWindow.getByRole('button', { name: 'pick' }).first()).toBeVisible()
+
+    await mainWindow.evaluate((filePath) => {
+      window.dispatchEvent(new CustomEvent('file:open-request', { detail: filePath }))
+    }, tempEditorFile)
+    await expect.poll(async () => {
+      return await mainWindow.evaluate(() => {
+        const tabs = Array.from(document.querySelectorAll<HTMLElement>('.slot-tab'))
+        const editorTab = tabs.find((tab) => tab.textContent?.includes('EDITOR'))
+        if (!editorTab) return null
+        return getComputedStyle(editorTab).color
+      })
+    }).toBe('rgb(84, 140, 90)')
+    await expect(mainWindow.locator('.monaco-editor').first()).toBeVisible()
 
     await mainWindow.locator('[title="Pop out to separate window"]').first().click()
     await expect.poll(async () => (await electronApp.windows()).length).toBe(2)

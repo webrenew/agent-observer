@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import {
+  clearAppShuttingDown,
   __testOnlyResetAppShutdownState,
   assertAppNotShuttingDown,
   markAppShuttingDown,
@@ -24,4 +25,10 @@ test('shutdown guard throws deterministic APP_SHUTTING_DOWN error', () => {
 
   expect(thrown).toBeInstanceOf(Error)
   expect(String((thrown as Error).message)).toContain('APP_SHUTTING_DOWN')
+})
+
+test('shutdown guard can be cleared if quit is aborted before will-quit', () => {
+  markAppShuttingDown()
+  clearAppShuttingDown()
+  expect(() => assertAppNotShuttingDown('claude:start')).not.toThrow()
 })

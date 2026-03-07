@@ -27,7 +27,7 @@ import {
   logMainEvent,
   setupDiagnosticsHandlers,
 } from './diagnostics'
-import { markAppShuttingDown } from './shutdown-state'
+import { clearAppShuttingDown, markAppShuttingDown } from './shutdown-state'
 
 // Strip Claude session env vars so embedded terminals can launch Claude Code
 for (const key of Object.keys(process.env)) {
@@ -652,8 +652,15 @@ if (!gotTheLock) {
         if (forceExitTriggered) return
         shutdownCompleted = true
         shutdownInProgress = false
+        // If the follow-up app.quit() does not reach will-quit, clear the latch
+        // so the running app does not stay stuck in APP_SHUTTING_DOWN forever.
+        clearAppShuttingDown()
         app.quit()
       })
+  })
+
+  app.on('will-quit', () => {
+    markAppShuttingDown()
   })
 
   app.on('window-all-closed', () => {

@@ -63,6 +63,15 @@ export function __testOnlyShouldStartPackagedUpdateCheck(
   return (nowMs - lastCheckStartedAtMs) >= checkIntervalMs
 }
 
+export function __testOnlyShouldUseNativePackagedUpdater(
+  isPackaged: boolean,
+  platform: NodeJS.Platform
+): boolean {
+  // Our macOS releases currently ship DMGs, not ZIP artifacts, so the
+  // built-in MacUpdater download flow cannot complete successfully.
+  return isPackaged && platform !== 'darwin'
+}
+
 function baseStatus(currentVersion: string): AppUpdateStatusResult {
   return {
     currentVersion,
@@ -327,7 +336,7 @@ function ensureAutoUpdaterCheckStarted(options?: { force?: boolean }): void {
 }
 
 async function resolveUpdateStatus(): Promise<AppUpdateStatusResult> {
-  if (app.isPackaged) {
+  if (__testOnlyShouldUseNativePackagedUpdater(app.isPackaged, process.platform)) {
     initializeAutoUpdaterIfNeeded()
     ensureAutoUpdaterCheckStarted()
     return liveStatus
@@ -347,7 +356,9 @@ export function setupUpdateHandlers(): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.updates.installAndRestart, async () => {
-    if (!app.isPackaged || !liveStatus.canInstall) return false
+    if (!__testOnlyShouldUseNativePackagedUpdater(app.isPackaged, process.platform) || !liveStatus.canInstall) {
+      return false
+    }
     try {
       autoUpdater.quitAndInstall(false, true)
       return true
@@ -361,7 +372,7 @@ export function setupUpdateHandlers(): void {
     }
   })
 
-  if (app.isPackaged) {
+  if (__testOnlyShouldUseNativePackagedUpdater(app.isPackaged, process.platform)) {
     initializeAutoUpdaterIfNeeded()
     ensureAutoUpdaterCheckStarted({ force: true })
   }

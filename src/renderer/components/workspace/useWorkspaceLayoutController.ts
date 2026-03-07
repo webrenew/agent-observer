@@ -546,6 +546,33 @@ export function useWorkspaceLayoutController(): WorkspaceLayoutController {
   }, [focusPanel])
 
   useEffect(() => {
+    const handleOpenRequest = ((event: Event) => {
+      const detail = (event as CustomEvent<string | { path: string }>).detail
+      if (!detail) return
+      focusPanel('filePreview')
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('file:open', { detail }))
+      }, 0)
+    }) as EventListener
+
+    const handleProposalRequest = ((event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail
+      if (!detail) return
+      focusPanel('filePreview')
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('file:propose-update', { detail }))
+      }, 0)
+    }) as EventListener
+
+    window.addEventListener('file:open-request', handleOpenRequest)
+    window.addEventListener('file:propose-update-request', handleProposalRequest)
+    return () => {
+      window.removeEventListener('file:open-request', handleOpenRequest)
+      window.removeEventListener('file:propose-update-request', handleProposalRequest)
+    }
+  }, [focusPanel])
+
+  useEffect(() => {
     const api = window.electronAPI?.fs
     if (!api?.onOpenFolder) return
     return api.onOpenFolder((folderPath: string) => {

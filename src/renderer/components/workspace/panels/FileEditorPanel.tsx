@@ -2,7 +2,7 @@
  * FileEditorPanel — Monaco-based editor + multi-type preview panel.
  *
  * Listens for:
- * - `file:open` custom events (Explorer/Search panels)
+ * - `file:open` custom events (emitted after the layout surfaces the editor)
  * - `file:propose-update` custom events (agent/user proposal flow)
  *
  * Text-like files support staged writes with diff preview.
