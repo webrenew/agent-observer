@@ -428,13 +428,6 @@ export function FileEditorPanel() {
   const lspLang = isTextFile ? lang : 'plaintext'
   const { notifyChange } = useLspBridge(lspPath, lspLang, monacoRef, editorRef)
 
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('file:preview-ready'))
-    return () => {
-      window.dispatchEvent(new CustomEvent('file:preview-disposed'))
-    }
-  }, [])
-
   const applyProposalToCurrentFile = useCallback((proposal: FileUpdateProposal) => {
     setContent(proposal.content)
     setIsDirty(proposal.content !== savedContentRef.current)
@@ -528,6 +521,13 @@ export function FileEditorPanel() {
       window.removeEventListener('file:propose-update', proposalHandler as EventListener)
     }
   }, [applyImageProposalToCurrentFile, applyPdfProposalToCurrentFile, applyProposalToCurrentFile, fileName, filePath, isLoading, isTextFile, previewKind])
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('file:preview-ready'))
+    return () => {
+      window.dispatchEvent(new CustomEvent('file:preview-disposed'))
+    }
+  }, [])
 
   // Load file content/preview
   useEffect(() => {
