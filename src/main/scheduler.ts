@@ -14,6 +14,11 @@ import {
   terminateManagedProcess,
 } from './process-runner'
 import { assertAppNotShuttingDown } from './shutdown-state'
+import {
+  createRunRecord,
+  snapshotWorkspaceChangedFiles,
+  updateRunRecord,
+} from './run-history'
 
 type SchedulerRunStatus = 'idle' | 'running' | 'success' | 'error'
 type SchedulerRunTrigger = 'cron' | 'manual'
@@ -1049,13 +1054,39 @@ async function runTask(
   const effectiveBackfillMinutes = trigger === 'cron'
     ? Math.max(0, runContext.backfillMinutes ?? 0)
     : null
+  const startedAt = Date.now()
+  const startedAtIso = new Date(startedAt).toISOString()
+  const runPrompt = [
+    `[Scheduled task run]`,
+    `Task: ${task.name}`,
+    `Trigger: ${trigger}`,
+    `Timestamp: ${startedAtIso}`,
+    ...(effectiveScheduledTimestamp ? [`Scheduled timestamp: ${effectiveScheduledTimestamp}`] : []),
+    ...(effectiveScheduledMinuteKey ? [`Scheduled minute key: ${effectiveScheduledMinuteKey}`] : []),
+    ...(effectiveBackfillMinutes != null ? [`Backfill minutes: ${effectiveBackfillMinutes}`] : []),
+    '',
+    task.prompt,
+  ].join('\n')
+  const runRecord = createRunRecord({
+    source: 'scheduler',
+    trigger,
+    title: task.name,
+    prompt: runPrompt,
+    workspaceDirectory: task.workingDirectory,
+    schedulerTaskId: task.id,
+    schedulerTaskName: task.name,
+    startedAt,
+    notes: [`Trigger: ${trigger}`],
+    resumable: false,
+  })
 
   let cwdStat: fs.Stats
   try {
     cwdStat = fs.statSync(task.workingDirectory)
   } catch {
+    const completedAt = Date.now()
     const runtime = runtimeByTaskId.get(task.id) ?? createRuntime()
-    runtime.lastRunAt = Date.now()
+    runtime.lastRunAt = completedAt
     runtime.lastStatus = 'error'
     runtime.lastError = `Directory not found: ${task.workingDirectory}`
     runtime.lastDurationMs = null
@@ -1063,12 +1094,21 @@ async function runTask(
     runtime.lastScheduledMinuteKey = effectiveScheduledMinuteKey
     runtime.lastBackfillMinutes = effectiveBackfillMinutes
     runtimeByTaskId.set(task.id, runtime)
+    updateRunRecord(runRecord.id, {
+      status: 'error',
+      lastError: runtime.lastError,
+      blocked: true,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs: completedAt - startedAt,
+    })
     broadcastSchedulerUpdate()
     return true
   }
   if (!cwdStat.isDirectory()) {
+    const completedAt = Date.now()
     const runtime = runtimeByTaskId.get(task.id) ?? createRuntime()
-    runtime.lastRunAt = Date.now()
+    runtime.lastRunAt = completedAt
     runtime.lastStatus = 'error'
     runtime.lastError = `Not a directory: ${task.workingDirectory}`
     runtime.lastDurationMs = null
@@ -1076,6 +1116,14 @@ async function runTask(
     runtime.lastScheduledMinuteKey = effectiveScheduledMinuteKey
     runtime.lastBackfillMinutes = effectiveBackfillMinutes
     runtimeByTaskId.set(task.id, runtime)
+    updateRunRecord(runRecord.id, {
+      status: 'error',
+      lastError: runtime.lastError,
+      blocked: true,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs: completedAt - startedAt,
+    })
     broadcastSchedulerUpdate()
     return true
   }
@@ -1094,19 +1142,6 @@ async function runTask(
   runtime.lastBackfillMinutes = effectiveBackfillMinutes
   runtimeByTaskId.set(task.id, runtime)
   broadcastSchedulerUpdate()
-
-  const startedAtIso = new Date().toISOString()
-  const runPrompt = [
-    `[Scheduled task run]`,
-    `Task: ${task.name}`,
-    `Trigger: ${trigger}`,
-    `Timestamp: ${startedAtIso}`,
-    ...(effectiveScheduledTimestamp ? [`Scheduled timestamp: ${effectiveScheduledTimestamp}`] : []),
-    ...(effectiveScheduledMinuteKey ? [`Scheduled minute key: ${effectiveScheduledMinuteKey}`] : []),
-    ...(effectiveBackfillMinutes != null ? [`Backfill minutes: ${effectiveBackfillMinutes}`] : []),
-    '',
-    task.prompt,
-  ].join('\n')
 
   const args: string[] = ['-p', '--output-format', 'stream-json', '--verbose']
   if (task.yoloMode) {
@@ -1235,6 +1270,14 @@ async function runTask(
       code: processResult.exitCode,
       error: processResult.spawnError?.message ?? processResult.resultError ?? null,
     })
+    updateRunRecord(runRecord.id, {
+      status: 'stopped',
+      lastError: processResult.spawnError?.message ?? processResult.resultError ?? 'Task deleted before completion.',
+      resumable: false,
+      endedAt: completedAt,
+      durationMs: duration,
+      changedFiles: snapshotWorkspaceChangedFiles(task.workingDirectory),
+    })
     broadcastSchedulerUpdate()
     return true
   }
@@ -1255,10 +1298,20 @@ async function runTask(
       scheduledTimestamp: effectiveScheduledTimestamp,
       backfillMinutes: effectiveBackfillMinutes,
     })
+    updateRunRecord(runRecord.id, {
+      status: 'error',
+      lastError: processResult.spawnError.message,
+      blocked: false,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs: duration,
+      changedFiles: snapshotWorkspaceChangedFiles(task.workingDirectory),
+    })
     broadcastSchedulerUpdate()
     return true
   }
 
+  let runStatus: 'success' | 'error' = 'success'
   if (processResult.exitCode === 0 && !processResult.resultError) {
     finalRuntime.lastStatus = 'success'
     finalRuntime.lastError = null
@@ -1275,6 +1328,7 @@ async function runTask(
     finalRuntime.lastStatus = 'error'
     finalRuntime.lastError = processResult.resultError
       ?? (processResult.stderrTail.trim() || `Claude exited with code ${processResult.exitCode ?? 'null'}`)
+    runStatus = 'error'
     logMainEvent('scheduler.run.error', {
       taskId: task.id,
       taskName: task.name,
@@ -1289,6 +1343,15 @@ async function runTask(
   }
 
   runtimeByTaskId.set(task.id, finalRuntime)
+  updateRunRecord(runRecord.id, {
+    status: runStatus,
+    lastError: finalRuntime.lastError,
+    blocked: false,
+    resumable: false,
+    endedAt: completedAt,
+    durationMs: duration,
+    changedFiles: snapshotWorkspaceChangedFiles(task.workingDirectory),
+  })
   broadcastSchedulerUpdate()
   return true
 }

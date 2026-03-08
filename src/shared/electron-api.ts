@@ -9,6 +9,12 @@ import type {
   TodoRunnerJobInput,
 } from '../renderer/types'
 import type { PanelId } from './panel-registry'
+import type {
+  RunHistoryListOptions,
+  RunRecord,
+  RunRecordCreateInput,
+  RunRecordUpdateInput,
+} from './run-history'
 
 export type Unsubscribe = () => void
 
@@ -104,6 +110,12 @@ export const IPC_CHANNELS = {
     pause: 'todoRunner:pause',
     reset: 'todoRunner:reset',
     updated: 'todoRunner:updated',
+  },
+  runHistory: {
+    list: 'runHistory:list',
+    get: 'runHistory:get',
+    upsert: 'runHistory:upsert',
+    updated: 'runHistory:updated',
   },
 } as const
 
@@ -322,6 +334,15 @@ export interface ElectronAPI {
     start: (jobId: string) => Promise<TodoRunnerJob>
     pause: (jobId: string) => Promise<TodoRunnerPauseResult>
     reset: (jobId: string) => Promise<TodoRunnerJob>
+    onUpdated: (callback: () => void) => Unsubscribe
+  }
+  runHistory: {
+    list: (options?: RunHistoryListOptions) => Promise<RunRecord[]>
+    get: (runId: string) => Promise<RunRecord | null>
+    upsert: (
+      input: (RunRecordCreateInput & { id?: string })
+      | (RunRecordUpdateInput & { id: string })
+    ) => Promise<RunRecord>
     onUpdated: (callback: () => void) => Unsubscribe
   }
 }

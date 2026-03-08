@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AppSettings } from '../types'
 import { useSettingsStore } from '../store/settings'
 import { useWorkspaceStore } from '../store/workspace'
+import { useRunHistoryStore } from '../store/runHistory'
+import { STARTER_JOBS } from '../../shared/run-history'
 
 const ONBOARDING_DONE_KEY = 'agent-observer:onboarding:v1'
 
@@ -32,6 +34,10 @@ export function FirstRunOnboarding() {
   const settings = useSettingsStore((s) => s.settings)
   const setSettings = useSettingsStore((s) => s.setSettings)
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
+  const markClaudeVerified = useRunHistoryStore((s) => s.markClaudeVerified)
+  const markWorkspaceChosen = useRunHistoryStore((s) => s.markWorkspaceChosen)
+  const queueStarterLaunch = useRunHistoryStore((s) => s.queueStarterLaunch)
+  const finishCockpitOnboarding = useRunHistoryStore((s) => s.completeOnboarding)
 
   const [open, setOpen] = useState<boolean>(() => !isOnboardingComplete())
   const [claudeCheck, setClaudeCheck] = useState<ClaudeCheckState>({
@@ -70,6 +76,9 @@ export function FirstRunOnboarding() {
         version: result.version,
         error: result.available ? null : result.error ?? 'Claude CLI not found',
       })
+      if (result.available) {
+        markClaudeVerified()
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setClaudeCheck({
@@ -79,12 +88,17 @@ export function FirstRunOnboarding() {
         error: message,
       })
     }
-  }, [])
+  }, [markClaudeVerified])
 
   useEffect(() => {
     if (!open) return
     void runClaudeCheck()
   }, [open, runClaudeCheck])
+
+  useEffect(() => {
+    if (!open || !workspaceRoot) return
+    markWorkspaceChosen()
+  }, [markWorkspaceChosen, open, workspaceRoot])
 
   const togglePermissionMode = useCallback(() => {
     void persistSettings({
@@ -125,8 +139,14 @@ export function FirstRunOnboarding() {
 
   const completeOnboarding = useCallback(() => {
     markOnboardingComplete()
+    finishCockpitOnboarding()
     setOpen(false)
-  }, [])
+  }, [finishCockpitOnboarding])
+
+  const launchStarterJob = useCallback((jobId: (typeof STARTER_JOBS)[number]['id']) => {
+    queueStarterLaunch(jobId)
+    completeOnboarding()
+  }, [completeOnboarding, queueStarterLaunch])
 
   if (!open) return null
 
@@ -359,6 +379,60 @@ export function FirstRunOnboarding() {
               Use Current Workspace
             </button>
           </div>
+        </div>
+
+        <div
+          style={{
+            border: '1px solid rgba(84,140,90,0.18)',
+            borderRadius: 10,
+            padding: 12,
+            background: 'linear-gradient(180deg, rgba(16,23,18,0.7), rgba(10,12,11,0.35))',
+          }}
+        >
+          <div style={{ color: '#9A9692', fontSize: 13, fontWeight: 600 }}>Launch your first tracked run</div>
+          <div style={{ color: '#595653', fontSize: 11, marginTop: 2 }}>
+            These starter jobs drop straight into the existing chat flow and show up in run history and the office.
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 8,
+            }}
+          >
+            {STARTER_JOBS.map((job) => (
+              <button
+                key={job.id}
+                type="button"
+                onClick={() => launchStarterJob(job.id)}
+                disabled={claudeCheck.status !== 'ok'}
+                style={{
+                  border: '1px solid rgba(89,86,83,0.28)',
+                  background: 'rgba(10,12,11,0.52)',
+                  borderRadius: 8,
+                  padding: '10px 11px',
+                  textAlign: 'left',
+                  color: claudeCheck.status === 'ok' ? '#ECE7DE' : '#595653',
+                  fontFamily: 'inherit',
+                  cursor: claudeCheck.status === 'ok' ? 'pointer' : 'default',
+                }}
+              >
+                <div style={{ color: claudeCheck.status === 'ok' ? '#7D9B82' : '#595653', fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
+                  {job.eyebrow}
+                </div>
+                <div style={{ marginTop: 5, fontSize: 13, fontWeight: 700 }}>{job.title}</div>
+                <div style={{ marginTop: 6, color: '#8F8B87', fontSize: 11, lineHeight: 1.45 }}>
+                  {job.description}
+                </div>
+              </button>
+            ))}
+          </div>
+          {claudeCheck.status !== 'ok' ? (
+            <div style={{ marginTop: 8, color: '#c45050', fontSize: 11 }}>
+              Claude must be ready before you can launch a tracked starter job.
+            </div>
+          ) : null}
         </div>
 
         {saveError && (

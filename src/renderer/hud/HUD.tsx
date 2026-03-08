@@ -2,6 +2,7 @@ import { StatsBar } from './StatsBar'
 import { AgentCard } from './AgentCard'
 import { ToastStack } from './Toast'
 import { CelebrationDeck } from './CelebrationDeck'
+import { SoloOperatorPanel } from './SoloOperatorPanel'
 
 export function HUD() {
   return (
@@ -13,6 +14,10 @@ export function HUD() {
 
       {/* Agent detail card */}
       <AgentCard />
+
+      <div className="absolute top-4 right-4 pointer-events-auto">
+        <SoloOperatorPanel />
+      </div>
 
       {/* Manual office celebrations */}
       <CelebrationDeck />

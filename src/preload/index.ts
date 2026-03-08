@@ -165,6 +165,12 @@ const electronAPI: ElectronAPI = {
     reset: invokeFor<ElectronAPI['todoRunner']['reset']>(IPC_CHANNELS.todoRunner.reset),
     onUpdated: subscribeFor<SubscriptionCallback<ElectronAPI['todoRunner']['onUpdated']>>(IPC_CHANNELS.todoRunner.updated),
   },
+  runHistory: {
+    list: invokeFor<ElectronAPI['runHistory']['list']>(IPC_CHANNELS.runHistory.list),
+    get: invokeFor<ElectronAPI['runHistory']['get']>(IPC_CHANNELS.runHistory.get),
+    upsert: invokeFor<ElectronAPI['runHistory']['upsert']>(IPC_CHANNELS.runHistory.upsert),
+    onUpdated: subscribeFor<SubscriptionCallback<ElectronAPI['runHistory']['onUpdated']>>(IPC_CHANNELS.runHistory.updated),
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

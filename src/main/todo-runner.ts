@@ -12,6 +12,11 @@ import {
   terminateManagedProcess,
 } from './process-runner'
 import { assertAppNotShuttingDown } from './shutdown-state'
+import {
+  createRunRecord,
+  snapshotWorkspaceChangedFiles,
+  updateRunRecord,
+} from './run-history'
 
 type TodoRunnerRunStatus = 'idle' | 'running' | 'success' | 'error'
 type TodoRunnerRunTrigger = 'auto' | 'manual'
@@ -935,6 +940,25 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     return
   }
   const todoId = todo.id
+  const startedAt = Date.now()
+  let runRecordId: string | null = null
+  const ensureRunRecordId = (): string => {
+    if (runRecordId) return runRecordId
+    runRecordId = createRunRecord({
+      source: 'todoRunner',
+      trigger,
+      title: `${job.name} — Todo ${todoIndex + 1}`,
+      prompt: `${job.prompt}\n\n[Todo item]\n${todo.text}`,
+      workspaceDirectory: job.workingDirectory,
+      todoRunnerJobId: job.id,
+      todoRunnerJobName: job.name,
+      todoItemText: todo.text,
+      startedAt,
+      notes: [`Todo ${todoIndex + 1} of ${job.todos.length}`],
+      resumable: false,
+    }).id
+    return runRecordId
+  }
 
   let cwdStat: fs.Stats
   try {
@@ -947,6 +971,14 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     runtime.lastRunAt = Date.now()
     runtime.lastRunTrigger = trigger
     job.enabled = false
+    updateRunRecord(ensureRunRecordId(), {
+      status: 'error',
+      lastError: runtime.lastError,
+      blocked: true,
+      resumable: false,
+      endedAt: Date.now(),
+      durationMs: Date.now() - startedAt,
+    })
     writeJobsToDisk(jobsCache)
     broadcastTodoRunnerUpdate()
     return
@@ -959,6 +991,14 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     runtime.lastRunAt = Date.now()
     runtime.lastRunTrigger = trigger
     job.enabled = false
+    updateRunRecord(ensureRunRecordId(), {
+      status: 'error',
+      lastError: runtime.lastError,
+      blocked: true,
+      resumable: false,
+      endedAt: Date.now(),
+      durationMs: Date.now() - startedAt,
+    })
     writeJobsToDisk(jobsCache)
     broadcastTodoRunnerUpdate()
     return
@@ -969,7 +1009,6 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     return
   }
 
-  const startedAt = Date.now()
   const runtime = ensureRuntime(job.id)
   runtime.isRunning = true
   runtime.lastStatus = 'running'
@@ -984,6 +1023,8 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
   todo.lastRunAt = startedAt
   todo.nextRetryAt = null
   job.updatedAt = startedAt
+
+  const activeRunRecordId = ensureRunRecordId()
 
   writeJobsToDisk(jobsCache)
   broadcastTodoRunnerUpdate()
@@ -1125,6 +1166,20 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     }
     liveState.job.updatedAt = completedAt
 
+    updateRunRecord(activeRunRecordId, {
+      status: wasStoppedByUser ? 'stopped' : 'error',
+      lastError: wasStoppedByUser
+        ? null
+        : payloadTransportError
+          ? payloadTransportErrorMessage
+          : liveState.todo?.lastError ?? `Failed to spawn runner: ${processResult.spawnError.message}`,
+      blocked: !wasStoppedByUser && (liveState.todo?.attempts ?? 0) >= TODO_MAX_ATTEMPTS,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs,
+      changedFiles: snapshotWorkspaceChangedFiles(job.workingDirectory),
+    })
+
     runtimeNext.lastStatus = wasStoppedByUser ? 'idle' : 'error'
     runtimeNext.lastError = wasStoppedByUser
       ? null
@@ -1179,6 +1234,15 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     }
     runtimeNext.lastStatus = 'idle'
     runtimeNext.lastError = null
+    updateRunRecord(activeRunRecordId, {
+      status: 'stopped',
+      lastError: null,
+      blocked: false,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs,
+      changedFiles: snapshotWorkspaceChangedFiles(job.workingDirectory),
+    })
   } else if (!errorMessage) {
     if (liveState.todo) {
       liveState.todo.status = 'done'
@@ -1187,6 +1251,15 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     }
     runtimeNext.lastStatus = 'success'
     runtimeNext.lastError = null
+    updateRunRecord(activeRunRecordId, {
+      status: 'success',
+      lastError: null,
+      blocked: false,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs,
+      changedFiles: snapshotWorkspaceChangedFiles(job.workingDirectory),
+    })
     logMainEvent('todo_runner.todo.success', {
       jobId: liveState.job.id,
       jobName: liveState.job.name,
@@ -1206,6 +1279,15 @@ async function runTodo(job: TodoRunnerJobRecord, todoIndex: number, trigger: Tod
     }
     runtimeNext.lastStatus = 'error'
     runtimeNext.lastError = errorMessage
+    updateRunRecord(activeRunRecordId, {
+      status: 'error',
+      lastError: errorMessage,
+      blocked: (liveState.todo?.attempts ?? 0) >= TODO_MAX_ATTEMPTS,
+      resumable: false,
+      endedAt: completedAt,
+      durationMs,
+      changedFiles: snapshotWorkspaceChangedFiles(job.workingDirectory),
+    })
     logMainEvent('todo_runner.todo.error', {
       jobId: liveState.job.id,
       jobName: liveState.job.name,

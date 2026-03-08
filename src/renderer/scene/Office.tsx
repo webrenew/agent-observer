@@ -8,6 +8,8 @@ import { OfficeCat } from './OfficeCat'
 import { useAgentStore } from '../store/agents'
 import { useWorkspaceStore } from '../store/workspace'
 import { useWorkspaceIntelligenceStore } from '../store/workspaceIntelligence'
+import { useRunHistoryStore } from '../store/runHistory'
+import { deriveDailyDigest, filterAgentsForOfficeFocus } from '../lib/soloDevCockpit'
 import { OfficeSignals } from './OfficeSignals'
 import { PizzaParty } from './effects/PizzaParty'
 
@@ -153,12 +155,18 @@ export function Office() {
   const agents = useAgentStore((s) => s.agents)
   const chatSessions = useAgentStore((s) => s.chatSessions)
   const activeChatSessionId = useAgentStore((s) => s.activeChatSessionId)
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId)
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
   const snapshots = useWorkspaceIntelligenceStore((s) => s.snapshots)
   const rewards = useWorkspaceIntelligenceStore((s) => s.rewards)
+  const runs = useRunHistoryStore((s) => s.runs)
+  const officeFocusMode = useRunHistoryStore((s) => s.officeFocusMode)
 
   // Show only primary chat/terminal agents in Office.
-  const deskAgents = useMemo(() => agents.filter((a) => !a.isSubagent), [agents])
+  const deskAgents = useMemo(
+    () => filterAgentsForOfficeFocus(agents.filter((a) => !a.isSubagent), officeFocusMode, selectedAgentId),
+    [agents, officeFocusMode, selectedAgentId]
+  )
 
   const activeWorkspaceDirectory = useMemo(() => {
     const activeChat = chatSessions.find((session) => session.id === activeChatSessionId) ?? null
@@ -180,6 +188,17 @@ export function Office() {
     : Math.min(1, (activeSnapshot?.keyFiles.length ?? 0) / 8)
   const contextFiles = latestReward?.contextFiles ?? activeSnapshot?.keyFiles.length ?? 0
   const dirtyFiles = activeSnapshot?.gitDirtyFiles ?? 0
+  const dailyDigest = useMemo(
+    () => deriveDailyDigest(runs, { workspaceDirectory: activeWorkspaceDirectory }),
+    [activeWorkspaceDirectory, runs]
+  )
+  const latestRunStatus = useMemo(() => {
+    const candidate = runs.find((run) => {
+      if (!activeWorkspaceDirectory) return true
+      return run.workspaceDirectory === activeWorkspaceDirectory
+    })
+    return candidate?.status ?? null
+  }, [activeWorkspaceDirectory, runs])
 
   // Only show desks for active desk agents — no empty desks
   const maxIndex = deskAgents.length > 0 ? Math.max(...deskAgents.map((a) => a.deskIndex)) : -1
@@ -408,6 +427,11 @@ export function Office() {
         successRate={successRate}
         contextFiles={contextFiles}
         dirtyFiles={dirtyFiles}
+        focusMode={officeFocusMode}
+        activeAgents={deskAgents.length}
+        failedRunsToday={dailyDigest.failedRuns}
+        changedFilesToday={dailyDigest.topChangedFiles.length}
+        latestRunStatus={latestRunStatus}
       />
 
       <OrbitControls

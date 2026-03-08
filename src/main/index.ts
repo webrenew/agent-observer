@@ -11,6 +11,7 @@ import { setupSchedulerHandlers, cleanupScheduler } from './scheduler'
 import { setupTodoRunnerHandlers, cleanupTodoRunner } from './todo-runner'
 import { setupWorkspaceContextHandlers } from './workspace-context'
 import { setupUpdateHandlers } from './app-updates'
+import { setupRunHistoryHandlers, cleanupRunHistory } from './run-history'
 import { sendInstallBeaconOnLaunch } from './install-beacon'
 import {
   addStartupBreadcrumb,
@@ -454,6 +455,7 @@ if (!gotTheLock) {
     runStartupStep('agent_namer_handlers', () => setupAgentNamerHandlers(window))
     runStartupStep('scheduler_handlers', () => setupSchedulerHandlers())
     runStartupStep('todo_runner_handlers', () => setupTodoRunnerHandlers())
+    runStartupStep('run_history_handlers', () => setupRunHistoryHandlers())
     runStartupStep('menu', () => createApplicationMenu(window))
     runStartupStep('chat_popout_handler', () => setupChatPopoutHandler())
 
@@ -495,6 +497,7 @@ if (!gotTheLock) {
       { name: 'todo_runner', run: cleanupTodoRunner },
       { name: 'claude_sessions', run: cleanupClaudeSessions },
       { name: 'memories', run: cleanupMemories },
+      { name: 'run_history', run: async () => { cleanupRunHistory() } },
     ]
 
     for (const step of shutdownSteps) {

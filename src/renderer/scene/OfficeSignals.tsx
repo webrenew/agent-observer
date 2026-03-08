@@ -1,9 +1,16 @@
+import type { OfficeFocusMode, RunStatus } from '../../shared/run-history'
+
 interface OfficeSignalsProps {
   contextCoverage: number
   rewardScore: number | null
   successRate: number
   contextFiles: number
   dirtyFiles: number
+  focusMode: OfficeFocusMode
+  activeAgents: number
+  failedRunsToday: number
+  changedFilesToday: number
+  latestRunStatus: RunStatus | null
 }
 
 function clamp(value: number, min = 0, max = 1): number {
@@ -25,13 +32,29 @@ export function OfficeSignals({
   successRate,
   contextFiles,
   dirtyFiles,
+  focusMode,
+  activeAgents,
+  failedRunsToday,
+  changedFilesToday,
+  latestRunStatus,
 }: OfficeSignalsProps) {
   const contextLevel = clamp(contextCoverage)
   const rewardLevel = rewardScore == null ? 0 : clamp(rewardScore / 100)
   const successLevel = clamp(successRate)
-  const rewardColor = rewardScore == null ? '#74747C' : metricColor(rewardLevel)
+  const rewardColor = latestRunStatus === 'error'
+    ? '#c45050'
+    : latestRunStatus === 'success'
+      ? '#548C5A'
+      : rewardScore == null
+        ? '#74747C'
+        : metricColor(rewardLevel)
   const dirtyRatio = clamp(dirtyFiles / 24)
   const contextStacks = Math.max(1, Math.min(6, contextFiles))
+  const focusColor = focusMode === 'show-errors'
+    ? '#c45050'
+    : focusMode === 'changed-files'
+      ? '#4C89D9'
+      : '#548C5A'
 
   return (
     <>
@@ -93,6 +116,21 @@ export function OfficeSignals({
             <meshStandardMaterial color="#c45050" emissive="#c45050" emissiveIntensity={0.35} />
           </mesh>
         )}
+      </group>
+
+      <group position={[-4.35, 2.15, -6.55]}>
+        {[activeAgents, failedRunsToday, changedFilesToday].map((value, index) => (
+          <group key={index} position={[index * 0.42, 0, 0]}>
+            <mesh position={[0, 0, 0]}>
+              <cylinderGeometry args={[0.12, 0.12, 0.32, 18]} />
+              <meshStandardMaterial color="#1F1F1C" />
+            </mesh>
+            <mesh position={[0, 0.16 + clamp(value / 6) * 0.28, 0]}>
+              <cylinderGeometry args={[0.07, 0.07, 0.12 + clamp(value / 6) * 0.56, 18]} />
+              <meshStandardMaterial color={index === 1 ? '#c45050' : index === 2 ? '#4C89D9' : focusColor} emissive={index === 1 ? '#c45050' : index === 2 ? '#4C89D9' : focusColor} emissiveIntensity={0.28} />
+            </mesh>
+          </group>
+        ))}
       </group>
     </>
   )

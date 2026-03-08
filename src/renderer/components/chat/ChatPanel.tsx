@@ -10,8 +10,18 @@ import { useChatHistoryStore } from '../../store/chatHistory'
 import { matchScope } from '../../lib/scopeMatcher'
 import { playChatCompletionDing } from '../../lib/soundPlayer'
 import { computeRunReward } from '../../lib/rewardEngine'
+import { calculateTotalCost } from '../../lib/costEngine'
 import { logRendererEvent } from '../../lib/diagnostics'
 import { resolveClaudeProfile } from '../../lib/claudeProfile'
+import {
+  buildAutomationDraft,
+  buildForkPrompt,
+  extractChangedFilesFromMessages,
+  extractLastErrorFromMessages,
+  findLastResumableRun,
+  findStarterJobTemplate,
+} from '../../lib/soloDevCockpit'
+import { useRunHistoryStore } from '../../store/runHistory'
 import {
   applyPluginPromptTransforms,
   emitPluginHook,
@@ -32,6 +42,12 @@ import {
   routeClaudeEvent,
   type SessionStatus,
 } from './claudeEventHandlers'
+import { WorkspaceHome } from './WorkspaceHome'
+import type {
+  BuiltInAutomationId,
+  RunRecord,
+  StarterJobId,
+} from '../../../shared/run-history'
 
 interface ChatPanelProps {
   chatSessionId: string
@@ -42,6 +58,13 @@ let chatAgentCounter = 0
 
 function nextMessageId(): string {
   return `msg-${++chatMessageCounter}`
+}
+
+function createConversationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `conv-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
 }
 
 interface UsageSnapshot {
@@ -187,6 +210,9 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const runFileWriteCountRef = useRef(0)
   const runYoloModeRef = useRef(false)
   const runRewardRecordedRef = useRef(false)
+  const activeRunIdRef = useRef<string | null>(null)
+  const activeStarterJobIdRef = useRef<StarterJobId | null>(null)
+  const activeForkedFromRunIdRef = useRef<string | null>(null)
   const subagentSeatCounter = useRef(0)
   const activeSubagents = useRef<Map<string, string>>(new Map()) // toolUseId → subagentId
   const activeToolNames = useRef<Map<string, string>>(new Map()) // toolUseId → toolName
@@ -208,6 +234,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath)
   const recentFolders = useWorkspaceStore((s) => s.recentFolders)
+  const openWorkspaceFolder = useWorkspaceStore((s) => s.openFolder)
   const scopes = useSettingsStore((s) => s.settings.scopes)
   const claudeProfilesConfig = useSettingsStore((s) => s.settings.claudeProfiles)
   const soundsEnabled = useSettingsStore((s) => s.settings.soundsEnabled)
@@ -220,6 +247,12 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const addReward = useWorkspaceIntelligenceStore((s) => s.addReward)
   const rewards = useWorkspaceIntelligenceStore((s) => s.rewards)
   const latestContextForChat = useWorkspaceIntelligenceStore((s) => s.latestContextByChat[chatSessionId] ?? null)
+  const runs = useRunHistoryStore((s) => s.runs)
+  const pendingStarterLaunch = useRunHistoryStore((s) => s.pendingStarterLaunch)
+  const consumeStarterLaunch = useRunHistoryStore((s) => s.consumeStarterLaunch)
+  const markStarterJobSuccess = useRunHistoryStore((s) => s.markStarterJobSuccess)
+  const setLastResumableRunId = useRunHistoryStore((s) => s.setLastResumableRunId)
+  const lastSuccessfulStarterJobId = useRunHistoryStore((s) => s.lastSuccessfulStarterJobId)
   const [showRecentMenu, setShowRecentMenu] = useState(false)
   const recentMenuRef = useRef<HTMLDivElement>(null)
 
@@ -267,6 +300,16 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   const isDirectoryCustom = chatSession ? chatSession.directoryMode === 'custom' : false
   const hasStartedConversation = Boolean(chatSession?.agentId)
   const isRunActive = status === 'running' || Boolean(claudeSessionId)
+  const recentRuns = useMemo(() => {
+    const directory = workingDir ?? workspaceRoot ?? null
+    return runs.filter((run) => {
+      if (!directory) return true
+      return run.workspaceDirectory === directory
+    })
+  }, [runs, workingDir, workspaceRoot])
+  const lastResumableRun = useMemo(() => {
+    return findLastResumableRun(recentRuns, workingDir ?? workspaceRoot ?? null)
+  }, [recentRuns, workingDir, workspaceRoot])
   const activeClaudeProfile = useMemo(() => {
     return resolveClaudeProfile(claudeProfilesConfig, workingDir ?? null)
   }, [claudeProfilesConfig, workingDir])
@@ -425,18 +468,38 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     const agentId = agentIdRef.current
     const durationMs = runStartedAtRef.current ? Date.now() - runStartedAtRef.current : 0
     let rewardScore: number | null = null
+    let tokenDeltaInput = 0
+    let tokenDeltaOutput = 0
+    let estimatedCostUsd: number | null = null
 
     if (workspaceDirectory && agentId) {
       const baseline = runTokenBaselineRef.current
       const agent = useAgentStore.getState().agents.find((entry) => entry.id === agentId)
-      const tokenDeltaInput = Math.max(
+      tokenDeltaInput = Math.max(
         0,
         (agent?.tokens_input ?? baseline?.input ?? 0) - (baseline?.input ?? 0)
       )
-      const tokenDeltaOutput = Math.max(
+      tokenDeltaOutput = Math.max(
         0,
         (agent?.tokens_output ?? baseline?.output ?? 0) - (baseline?.output ?? 0)
       )
+      const currentTokensByModel = agent?.sessionStats.tokensByModel ?? {}
+      const baselineTokensByModel = runModelBaselineRef.current ?? {}
+      const deltaTokensByModel: Record<string, { input: number; output: number }> = {}
+      for (const model of new Set([
+        ...Object.keys(currentTokensByModel),
+        ...Object.keys(baselineTokensByModel),
+      ])) {
+        const current = currentTokensByModel[model] ?? { input: 0, output: 0 }
+        const baselineByModel = baselineTokensByModel[model] ?? { input: 0, output: 0 }
+        const input = Math.max(0, current.input - baselineByModel.input)
+        const output = Math.max(0, current.output - baselineByModel.output)
+        if (input === 0 && output === 0) continue
+        deltaTokensByModel[model] = { input, output }
+      }
+      estimatedCostUsd = Object.keys(deltaTokensByModel).length > 0
+        ? calculateTotalCost(deltaTokensByModel)
+        : ((tokenDeltaInput * 3) + (tokenDeltaOutput * 15)) / 1_000_000
 
       const reward = addReward(computeRunReward({
         chatSessionId,
@@ -485,10 +548,69 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
     }
     void emitPluginHook('session_end', agentEndPayload)
     void emitPluginHook('agent_end', agentEndPayload)
-  }, [addEvent, addReward, chatSession?.label, chatSessionId, workingDir])
+
+    const activeRunId = activeRunIdRef.current
+    if (activeRunId) {
+      const conversationId = chatSession?.claudeConversationId ?? null
+      const changedFiles = extractChangedFilesFromMessages(messagesRef.current)
+      const lastError = status === 'error' ? extractLastErrorFromMessages(messagesRef.current) : null
+      const lastToolName = [...messagesRef.current]
+        .reverse()
+        .find((message) => typeof message.toolName === 'string')
+        ?.toolName ?? null
+      const currentClaudeSessionId = activeClaudeSessionIdRef.current
+      void window.electronAPI.runHistory.upsert({
+        id: activeRunId,
+        status,
+        endedAt: Date.now(),
+        durationMs,
+        rewardScore,
+        contextFiles: runContextFilesRef.current,
+        unresolvedMentions: runUnresolvedMentionsRef.current,
+        lastError,
+        lastToolName,
+        changedFiles,
+        starterJobId: activeStarterJobIdRef.current,
+        forkedFromRunId: activeForkedFromRunIdRef.current,
+        chatSessionId,
+        conversationId,
+        claudeSessionId: currentClaudeSessionId,
+        toolSummary: {
+          totalCalls: runToolCallCountRef.current,
+          fileWrites: runFileWriteCountRef.current,
+          lastToolName,
+        },
+        costSummary: {
+          inputTokens: tokenDeltaInput,
+          outputTokens: tokenDeltaOutput,
+          estimatedCostUsd,
+        },
+        resumable: Boolean(conversationId),
+      }).catch((error) => {
+        console.warn('[ChatPanel] Failed to finalize run history:', error)
+      })
+
+      setLastResumableRunId(conversationId ? activeRunId : null)
+      if (status === 'success' && activeStarterJobIdRef.current) {
+        markStarterJobSuccess(activeStarterJobIdRef.current, conversationId ? activeRunId : null)
+      }
+    }
+  }, [
+    addEvent,
+    addReward,
+    chatSession?.claudeConversationId,
+    chatSession?.label,
+    chatSessionId,
+    markStarterJobSuccess,
+    setLastResumableRunId,
+    workingDir,
+  ])
 
   const resetRunState = useCallback(() => {
     setActiveClaudeSession(null)
+    activeRunIdRef.current = null
+    activeStarterJobIdRef.current = null
+    activeForkedFromRunIdRef.current = null
     activeRunDirectoryRef.current = null
     runTokenBaselineRef.current = null
     runModelBaselineRef.current = null
@@ -867,7 +989,18 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
   }, [addAgent, addEvent, chatSessionId, getNextDeskIndex, updateAgent, updateChatSession])
 
   const handleClaudePromptSend = useCallback(
-    async (message: string, workingDirectory: string, files?: File[], mentions?: string[]) => {
+    async (
+      message: string,
+      workingDirectory: string,
+      files?: File[],
+      mentions?: string[],
+      options?: {
+        starterJobId?: StarterJobId | null
+        forkedFromRunId?: string | null
+        title?: string
+        conversationIdOverride?: string | null
+      }
+    ) => {
       const promptPreparation = await prepareChatPrompt(
         {
           message,
@@ -945,6 +1078,8 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       runFileWriteCountRef.current = 0
       runYoloModeRef.current = yoloMode
       runRewardRecordedRef.current = false
+      activeStarterJobIdRef.current = options?.starterJobId ?? null
+      activeForkedFromRunIdRef.current = options?.forkedFromRunId ?? null
       activeToolNames.current.clear()
 
       setChatContextSnapshot({
@@ -958,7 +1093,10 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       })
       const profileForRun = resolveClaudeProfile(claudeProfilesConfig, workingDirectory)
       const agentId = ensureChatAgentForRun(message)
-      const conversationId = chatSession?.claudeConversationId
+      const conversationId = options?.conversationIdOverride ?? chatSession?.claudeConversationId ?? null
+      if (chatSession && conversationId && conversationId !== chatSession.claudeConversationId) {
+        updateChatSession(chatSessionId, { claudeConversationId: conversationId })
+      }
 
       const currentAgent = useAgentStore.getState().agents.find((agent) => agent.id === agentId)
       runTokenBaselineRef.current = {
@@ -992,14 +1130,54 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         transformed: promptTransformResult.transformed,
       })
 
+      const runId = activeRunIdRef.current ?? createConversationId()
+      activeRunIdRef.current = runId
+      try {
+        await window.electronAPI.runHistory.upsert({
+          id: runId,
+          source: 'chat',
+          trigger: 'manual',
+          title: options?.title
+            ?? (options?.starterJobId ? findStarterJobTemplate(options.starterJobId)?.title : null)
+            ?? chatSession?.label
+            ?? 'Chat run',
+          prompt: promptForSend,
+          workspaceDirectory: workingDirectory,
+          chatSessionId,
+          conversationId,
+          starterJobId: options?.starterJobId ?? null,
+          forkedFromRunId: options?.forkedFromRunId ?? null,
+          startedAt: runStartedAtRef.current ?? Date.now(),
+          contextFiles: runContextFilesRef.current,
+          unresolvedMentions: runUnresolvedMentionsRef.current,
+          notes: [
+            `Profile: ${profileForRun.profile.id}`,
+            `Scope: ${scopeName}`,
+          ],
+          resumable: Boolean(conversationId),
+        })
+      } catch (error) {
+        console.warn('[ChatPanel] Failed to create run history record:', error)
+      }
+
       try {
         const result = await window.electronAPI.claude.start({
           prompt: promptForSend,
-          conversationId,
+          conversationId: conversationId ?? undefined,
           workingDirectory,
           dangerouslySkipPermissions: yoloMode,
         })
         setActiveClaudeSession(result.sessionId)
+        void window.electronAPI.runHistory.upsert({
+          id: runId,
+          status: 'running',
+          claudeSessionId: result.sessionId,
+          conversationId,
+          chatSessionId,
+          resumable: Boolean(conversationId),
+        }).catch((error) => {
+          console.warn('[ChatPanel] Failed to sync live run history:', error)
+        })
       } catch (error: unknown) {
         const errMsg = error instanceof Error ? error.message : String(error)
         console.error(`Failed to start Claude session: ${errMsg}`)
@@ -1014,11 +1192,26 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
         ])
         setStatus('error')
         updateAgent(agentId, { status: 'error', isClaudeRunning: false })
+        void window.electronAPI.runHistory.upsert({
+          id: runId,
+          status: 'error',
+          lastError: errMsg,
+          endedAt: Date.now(),
+          durationMs: runStartedAtRef.current ? Date.now() - runStartedAtRef.current : 0,
+          conversationId,
+          chatSessionId,
+          resumable: Boolean(conversationId),
+        }).catch((runHistoryError) => {
+          console.warn('[ChatPanel] Failed to record launch error:', runHistoryError)
+        })
         finalizeRunReward('error')
         activeRunDirectoryRef.current = null
         runTokenBaselineRef.current = null
         runModelBaselineRef.current = null
         runStartedAtRef.current = null
+        activeRunIdRef.current = null
+        activeStarterJobIdRef.current = null
+        activeForkedFromRunIdRef.current = null
       }
     },
     [
@@ -1033,6 +1226,7 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       updateAgent,
       upsertWorkspaceSnapshot,
       officePromptContext,
+      scopeName,
       yoloMode,
     ]
   )
@@ -1055,6 +1249,99 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
 
     await handleClaudePromptSend(message, effectiveWorkingDir, files, mentions)
   }, [handleClaudePromptSend, handleSlashCommandSend, resolveEffectiveWorkingDir])
+
+  const handleLaunchStarterJob = useCallback(async (jobId: StarterJobId) => {
+    const template = findStarterJobTemplate(jobId)
+    if (!template) return
+    const effectiveWorkingDir = await resolveEffectiveWorkingDir()
+    if (!effectiveWorkingDir) return
+    await handleClaudePromptSend(
+      template.prompt,
+      effectiveWorkingDir,
+      undefined,
+      undefined,
+      {
+        starterJobId: jobId,
+        title: template.title,
+      }
+    )
+  }, [handleClaudePromptSend, resolveEffectiveWorkingDir])
+
+  const handleResumeRun = useCallback(async (run: RunRecord) => {
+    const effectiveWorkingDir = run.workspaceDirectory ?? await resolveEffectiveWorkingDir()
+    if (!effectiveWorkingDir) return
+    const conversationId = run.conversationId ?? chatSession?.claudeConversationId ?? createConversationId()
+    updateChatSession(chatSessionId, {
+      claudeConversationId: conversationId,
+      workingDirectory: effectiveWorkingDir,
+      directoryMode: effectiveWorkingDir === workspaceRoot ? 'workspace' : 'custom',
+    })
+    await handleClaudePromptSend(
+      'Resume the previous conversation from the current state. Restate progress, blockers, and the next best action, then continue the work if it is safe to do so.',
+      effectiveWorkingDir,
+      undefined,
+      undefined,
+      {
+        title: `Resume: ${run.title}`,
+        conversationIdOverride: conversationId,
+      }
+    )
+  }, [chatSession?.claudeConversationId, chatSessionId, handleClaudePromptSend, resolveEffectiveWorkingDir, updateChatSession, workspaceRoot])
+
+  const handleForkRun = useCallback(async (run: RunRecord) => {
+    const effectiveWorkingDir = run.workspaceDirectory ?? await resolveEffectiveWorkingDir()
+    if (!effectiveWorkingDir) return
+    const nextConversationId = createConversationId()
+    updateChatSession(chatSessionId, {
+      claudeConversationId: nextConversationId,
+      workingDirectory: effectiveWorkingDir,
+      directoryMode: effectiveWorkingDir === workspaceRoot ? 'workspace' : 'custom',
+    })
+    await handleClaudePromptSend(
+      buildForkPrompt(run),
+      effectiveWorkingDir,
+      undefined,
+      undefined,
+      {
+        title: `Fork: ${run.title}`,
+        forkedFromRunId: run.id,
+        conversationIdOverride: nextConversationId,
+      }
+    )
+  }, [chatSessionId, handleClaudePromptSend, resolveEffectiveWorkingDir, updateChatSession, workspaceRoot])
+
+  const handleInstallAutomation = useCallback(async (automationId: BuiltInAutomationId) => {
+    const effectiveWorkingDir = await resolveEffectiveWorkingDir()
+    if (!effectiveWorkingDir) return
+
+    try {
+      const draft = buildAutomationDraft(automationId, effectiveWorkingDir, yoloMode)
+      const existingTasks = await window.electronAPI.scheduler.list()
+      const existing = existingTasks.find((task) =>
+        task.name === draft.name && task.workingDirectory === effectiveWorkingDir
+      )
+      await window.electronAPI.scheduler.upsert({
+        ...draft,
+        id: existing?.id,
+      })
+      addToast({
+        type: 'success',
+        message: `${draft.name} installed for ${effectiveWorkingDir.split('/').pop() ?? effectiveWorkingDir}.`,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      addToast({
+        type: 'error',
+        message: `Failed to install automation: ${message}`,
+      })
+    }
+  }, [addToast, resolveEffectiveWorkingDir, yoloMode])
+
+  useEffect(() => {
+    if (!pendingStarterLaunch || messages.length > 0 || isRunActive) return
+    consumeStarterLaunch(pendingStarterLaunch.jobId)
+    void handleLaunchStarterJob(pendingStarterLaunch.jobId)
+  }, [consumeStarterLaunch, handleLaunchStarterJob, isRunActive, messages.length, pendingStarterLaunch])
 
   const handleStop = useCallback(async () => {
     if (!claudeSessionId) return
@@ -1401,40 +1688,23 @@ export function ChatPanel({ chatSessionId }: ChatPanelProps) {
       {/* Messages */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px', minHeight: 0 }}>
         {messages.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              gap: 8,
+          <WorkspaceHome
+            workingDirectory={workingDir ?? null}
+            workspaceRoot={workspaceRoot ?? null}
+            recentFolders={recentFolders}
+            recentRuns={recentRuns}
+            lastResumableRun={lastResumableRun}
+            lastSuccessfulStarterJobId={lastSuccessfulStarterJobId}
+            onChooseFolder={() => { void handleChangeWorkingDir() }}
+            onOpenRecentFolder={(path) => {
+              openWorkspaceFolder(path)
+              handleSelectRecentDirectory(path)
             }}
-          >
-            <span style={{ fontSize: 24 }}>👾</span>
-            <span style={{ color: '#74747C', fontSize: 'inherit' }}>Ask Claude anything</span>
-            <span style={{ color: '#595653', fontSize: 11 }}>
-              {workingDir ? `Working in ${cwdLabel}` : 'Pick a folder to scope this chat'}
-            </span>
-            {!workingDir && (
-              <button
-                onClick={() => void handleChangeWorkingDir()}
-                style={{
-                  marginTop: 6,
-                  background: 'rgba(84,140,90,0.12)',
-                  color: '#7fb887',
-                  border: '1px solid rgba(84,140,90,0.35)',
-                  borderRadius: 6,
-                  padding: '6px 10px',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Choose folder
-              </button>
-            )}
-          </div>
+            onLaunchStarterJob={(jobId) => { void handleLaunchStarterJob(jobId) }}
+            onResumeRun={(run) => { void handleResumeRun(run) }}
+            onForkRun={(run) => { void handleForkRun(run) }}
+            onInstallAutomation={(automationId) => { void handleInstallAutomation(automationId) }}
+          />
         ) : (
           <>
             {messages.map((msg) => (

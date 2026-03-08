@@ -4,6 +4,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstRunOnboarding } from './components/FirstRunOnboarding'
 import { useSettingsStore, loadSettings } from './store/settings'
 import { useWorkspaceStore } from './store/workspace'
+import { useRunHistoryStore } from './store/runHistory'
 import { syncPluginCatalogFromProfiles } from './plugins/runtime'
 import type { AppUpdateStatusResult } from '../shared/electron-api'
 
@@ -32,6 +33,7 @@ export function App() {
     void (async () => {
       await loadSettings()
       await useWorkspaceStore.getState().initializeStartupWorkspace()
+      await useRunHistoryStore.getState().loadRuns()
     })()
     const unsubs: Array<() => void> = []
     unsubs.push(window.electronAPI.settings.onOpenSettings(() => {
@@ -39,6 +41,9 @@ export function App() {
     }))
     unsubs.push(window.electronAPI.settings.onOpenHelp(() => {
       openHelp()
+    }))
+    unsubs.push(window.electronAPI.runHistory.onUpdated(() => {
+      void useRunHistoryStore.getState().refreshRuns()
     }))
     return () => {
       for (const unsub of unsubs) unsub()
