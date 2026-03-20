@@ -97,8 +97,13 @@
     "appId": "com.webrenew.agent-observer",
     "productName": "Agent Observer",
     "artifactName": "${name}-${version}-${arch}.${ext}",
+    "afterSign": "scripts/notarize.cjs",
     "mac": {
-      "identity": "-",
+      "identity": "Webrenew LLC (6M8Q4L7AB2)",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "resources/entitlements.mac.plist",
+      "entitlementsInherit": "resources/entitlements.mac.plist",
       "category": "public.app-category.developer-tools",
       "icon": "resources/icon.icns",
       "target": [
