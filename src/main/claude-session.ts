@@ -783,6 +783,36 @@ function startSessionInternal(options: ClaudeSessionOptions, ownerWebContentsId:
     }
   })
 
+  // Detect "Session ID is already in use" early and retry without --session-id
+  if (options.conversationId) {
+    const earlyExitHandler = (code: number | null) => {
+      if (code !== 0 && stderrBuffer.includes('already in use')) {
+        logMainEvent('claude.session.session_id_conflict', {
+          sessionId,
+          conversationId: options.conversationId,
+        }, 'warn')
+        // Clean up the failed session
+        clearSessionTimers(session)
+        activeSessions.delete(sessionId)
+        clearSessionObservers(sessionId)
+        // Retry without conversationId so a fresh session starts
+        const retryOptions = { ...options, conversationId: undefined }
+        const retrySessionId = startSessionInternal(retryOptions, ownerWebContentsId)
+        emitEvent({
+          sessionId,
+          type: 'error',
+          data: {
+            message: `Session was in use by another Claude process. Started fresh session.`,
+            retrySessionId,
+          },
+        })
+      }
+    }
+    proc.once('exit', earlyExitHandler)
+    // Remove early handler after 5s — if it hasn't exited by then, it started successfully
+    setTimeout(() => proc.removeListener('exit', earlyExitHandler), 5000)
+  }
+
   proc.on('error', (err: Error) => {
     logMainError('claude.session.process_error', err, {
       sessionId,

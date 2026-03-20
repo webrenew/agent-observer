@@ -128,12 +128,9 @@ export function CelebrationDeck() {
     <div
       className="celebration-deck"
       style={{
-        position: 'absolute',
-        top: 44,
-        right: 12,
         width: 230,
         borderRadius: 10,
-        pointerEvents: 'auto',
+        flexShrink: 0,
       }}
     >
       <div

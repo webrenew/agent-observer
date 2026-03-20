@@ -15,12 +15,23 @@ export function HUD() {
       {/* Agent detail card */}
       <AgentCard />
 
-      <div className="absolute top-4 right-4 pointer-events-auto">
+      {/* Right panel stack — scrollable at small heights */}
+      <div
+        className="absolute top-4 right-4 pointer-events-auto"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          maxHeight: 'calc(100% - 56px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(89,86,83,0.3) transparent',
+        }}
+      >
         <SoloOperatorPanel />
+        <CelebrationDeck />
       </div>
-
-      {/* Manual office celebrations */}
-      <CelebrationDeck />
 
       {/* Toast notifications */}
       <ToastStack />
