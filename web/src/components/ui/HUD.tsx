@@ -963,6 +963,15 @@ function TopBar({
           >
             Install
           </a>
+          <a
+            className="nav-item"
+            href="https://github.com/webrenew/agent-observer"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#74747C", fontSize: 12 }}
+          >
+            GitHub
+          </a>
         </nav>
       </div>
 
