@@ -6,11 +6,15 @@ import { getSettings, isValidShell, isValidDirectory } from './settings'
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pty = require('node-pty')
 
+/** Detected agent kind — null means no agent is running */
+type AgentKind = 'claude' | 'codex' | null
+
 interface PtySession {
   pty: ReturnType<typeof pty.spawn>
   pollTimer: ReturnType<typeof setInterval> | null
-  wasClaudeRunning: boolean
-  outputClaudeDetected: boolean
+  wasAgentRunning: boolean
+  detectedAgentKind: AgentKind
+  outputDetectedKind: AgentKind
 }
 
 const sessions = new Map<string, PtySession>()
@@ -18,18 +22,34 @@ let idCounter = 0
 let mainWindow: BrowserWindow | null = null
 let handlersRegistered = false
 
-// Match process names: claude, claude-code, node (claude runs as node)
-const CLAUDE_PROCESS_RE = /\bclaude\b/i
+// Process name patterns for detecting AI coding agents
+const AGENT_PROCESS_PATTERNS: Array<{ kind: NonNullable<AgentKind>; re: RegExp }> = [
+  { kind: 'claude', re: /\bclaude\b/i },
+  { kind: 'codex', re: /\bcodex\b/i },
+]
 
-// Output-based detection: Claude Code prints these on startup
-const CLAUDE_OUTPUT_PATTERNS = [
-  /claude(?:\s+code)?.*v?\d+\.\d+/i,        // version banner
-  /╭─+╮/,                                     // box-drawing TUI border
-  /\bTips:/,                                   // tips section
-  /\bType \/help/i,                            // help hint
-  /\bclaude>\s*$/m,                            // prompt
-  /\bHuman:\s*$/m,                             // REPL prompt variant
-  /\bClaude Code\b/i,                          // product name in output
+// Output-based detection patterns, keyed by agent kind
+const AGENT_OUTPUT_PATTERNS: Array<{ kind: NonNullable<AgentKind>; patterns: RegExp[] }> = [
+  {
+    kind: 'claude',
+    patterns: [
+      /claude(?:\s+code)?.*v?\d+\.\d+/i,        // version banner
+      /╭─+╮/,                                     // box-drawing TUI border
+      /\bTips:/,                                   // tips section
+      /\bType \/help/i,                            // help hint
+      /\bclaude>\s*$/m,                            // prompt
+      /\bHuman:\s*$/m,                             // REPL prompt variant
+      /\bClaude Code\b/i,                          // product name in output
+    ],
+  },
+  {
+    kind: 'codex',
+    patterns: [
+      /\bcodex\b.*v?\d+\.\d+/i,                   // version banner
+      /\bOpenAI Codex\b/i,                         // product name
+      /\bcodex>\s*$/m,                             // prompt
+    ],
+  },
 ]
 
 function getDefaultShell(): string {
@@ -77,8 +97,9 @@ export function setupTerminalHandlers(window: BrowserWindow): void {
     const session: PtySession = {
       pty: ptyProcess,
       pollTimer: null,
-      wasClaudeRunning: false,
-      outputClaudeDetected: false
+      wasAgentRunning: false,
+      detectedAgentKind: null,
+      outputDetectedKind: null
     }
 
     // Rolling buffer for output-based detection
@@ -89,21 +110,24 @@ export function setupTerminalHandlers(window: BrowserWindow): void {
     ptyProcess.onData((data: string) => {
       sendToMainWindow('terminal:data', id, data)
 
-      // Output-based Claude detection (supplements process name polling)
-      if (!session.outputClaudeDetected) {
+      // Output-based agent detection (supplements process name polling)
+      if (!session.outputDetectedKind) {
         outputBuffer += data
         if (outputBuffer.length > OUTPUT_BUFFER_MAX) {
           outputBuffer = outputBuffer.slice(-OUTPUT_BUFFER_MAX)
         }
 
-        const matched = CLAUDE_OUTPUT_PATTERNS.some((re) => re.test(outputBuffer))
-        if (matched) {
-          session.outputClaudeDetected = true
-          outputBuffer = '' // free memory
+        for (const { kind, patterns } of AGENT_OUTPUT_PATTERNS) {
+          if (patterns.some((re) => re.test(outputBuffer))) {
+            session.outputDetectedKind = kind
+            outputBuffer = '' // free memory
 
-          if (!session.wasClaudeRunning) {
-            session.wasClaudeRunning = true
-            sendToMainWindow('terminal:claude-status', id, true)
+            if (!session.wasAgentRunning) {
+              session.wasAgentRunning = true
+              session.detectedAgentKind = kind
+              sendToMainWindow('terminal:claude-status', id, true, kind)
+            }
+            break
           }
         }
       }
@@ -123,21 +147,31 @@ export function setupTerminalHandlers(window: BrowserWindow): void {
 
       try {
         const processName: string = s.pty.process
-        const isClaude = CLAUDE_PROCESS_RE.test(processName)
+
+        // Check process name against all known agent patterns
+        let processKind: AgentKind = null
+        for (const { kind, re } of AGENT_PROCESS_PATTERNS) {
+          if (re.test(processName)) {
+            processKind = kind
+            break
+          }
+        }
 
         // Combine: process name OR output detection
-        const isClaudeRunning = isClaude || s.outputClaudeDetected
+        const agentKind = processKind ?? s.outputDetectedKind
+        const isAgentRunning = agentKind !== null
 
-        if (isClaudeRunning !== s.wasClaudeRunning) {
-          s.wasClaudeRunning = isClaudeRunning
+        if (isAgentRunning !== s.wasAgentRunning) {
+          s.wasAgentRunning = isAgentRunning
+          s.detectedAgentKind = agentKind
 
-          // When Claude exits, reset output detection for next run
-          if (!isClaudeRunning) {
-            s.outputClaudeDetected = false
+          // When agent exits, reset output detection for next run
+          if (!isAgentRunning) {
+            s.outputDetectedKind = null
             outputBuffer = ''
           }
 
-          sendToMainWindow('terminal:claude-status', id, isClaudeRunning)
+          sendToMainWindow('terminal:claude-status', id, isAgentRunning, agentKind)
         }
       } catch {
         // Process may have exited between check — ignore
