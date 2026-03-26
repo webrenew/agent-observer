@@ -3,7 +3,7 @@ import { useRunHistoryStore } from '../store/runHistory'
 import { useWorkspaceStore } from '../store/workspace'
 import { deriveDailyDigest } from '../lib/soloDevCockpit'
 
-export function SoloOperatorPanel() {
+export function SoloOperatorPanel({ onClose }: { onClose?: () => void }) {
   const runs = useRunHistoryStore((s) => s.runs)
   const officeFocusMode = useRunHistoryStore((s) => s.officeFocusMode)
   const setOfficeFocusMode = useRunHistoryStore((s) => s.setOfficeFocusMode)
@@ -32,13 +32,39 @@ export function SoloOperatorPanel() {
         background: 'linear-gradient(180deg, rgba(17,18,17,0.9), rgba(10,10,10,0.85))',
       }}
     >
-      <div>
-        <div style={{ color: '#74747C', fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
-          OFFICE CONTROL
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ color: '#74747C', fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
+            OFFICE CONTROL
+          </div>
+          <div style={{ marginTop: 6, color: '#ECE7DE', fontSize: 16, fontWeight: 700 }}>
+            Daily operator digest
+          </div>
         </div>
-        <div style={{ marginTop: 6, color: '#ECE7DE', fontSize: 16, fontWeight: 700 }}>
-          Daily operator digest
-        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              border: '1px solid rgba(89,86,83,0.25)',
+              background: 'transparent',
+              color: '#74747C',
+              fontSize: 14,
+              lineHeight: 1,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+            title="Close digest"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
