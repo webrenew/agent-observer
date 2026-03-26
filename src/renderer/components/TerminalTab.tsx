@@ -235,8 +235,8 @@ export function TerminalTab({ terminalId, isActive }: TerminalTabProps) {
       }
     })
 
-    // Claude status from main process polling — this is where agents spawn/despawn
-    const unsubClaude = window.electronAPI.terminal.onClaudeStatus((id, isRunning) => {
+    // Agent status from main process polling — this is where agents spawn/despawn
+    const unsubClaude = window.electronAPI.terminal.onClaudeStatus((id, isRunning, agentKind) => {
       if (id !== terminalId) return
 
       // Update terminal tab indicator
@@ -247,11 +247,12 @@ export function TerminalTab({ terminalId, isActive }: TerminalTabProps) {
         .agents.find((a) => a.terminalId === terminalId)
 
       if (isRunning && !existingAgent) {
-        // Claude just started → spawn agent
+        // Agent just started → spawn agent
         const deskIndex = getNextDeskIndex()
+        const label = agentKind === 'codex' ? 'Codex' : 'Claude'
         const agent: Agent = {
           id: `agent-${++agentIdCounter}`,
-          name: `Claude ${agentIdCounter}`,
+          name: `${label} ${agentIdCounter}`,
           agent_type: 'cli',
           status: 'thinking',
           currentTask: 'Starting up...',
@@ -338,15 +339,22 @@ export function TerminalTab({ terminalId, isActive }: TerminalTabProps) {
     }
   }, [terminalId, updateAgent, addAgent, removeAgent, updateTerminal, getNextDeskIndex, addToast, addEvent, focusAgentTerminal])
 
-  // Re-fit when tab becomes active
+  // Re-fit and sync PTY dimensions when tab becomes active
   useEffect(() => {
     if (isActive && fitAddonRef.current) {
+      // Double rAF: first ensures display:block is applied, second ensures layout is measured
       requestAnimationFrame(() => {
-        fitAddonRef.current?.fit()
-        terminalRef.current?.focus()
+        requestAnimationFrame(() => {
+          fitAddonRef.current?.fit()
+          const dims = fitAddonRef.current?.proposeDimensions()
+          if (dims) {
+            window.electronAPI.terminal.resize(terminalId, dims.cols, dims.rows)
+          }
+          terminalRef.current?.focus()
+        })
       })
     }
-  }, [isActive])
+  }, [isActive, terminalId])
 
   return (
     <div

@@ -246,7 +246,7 @@ export interface ElectronAPI {
     kill: (id: string) => Promise<void>
     onData: (callback: (id: string, data: string) => void) => Unsubscribe
     onExit: (callback: (id: string, exitCode: number, signal?: number) => void) => Unsubscribe
-    onClaudeStatus: (callback: (id: string, isRunning: boolean) => void) => Unsubscribe
+    onClaudeStatus: (callback: (id: string, isRunning: boolean, agentKind?: string | null) => void) => Unsubscribe
   }
   settings: {
     get: () => Promise<AppSettings>
