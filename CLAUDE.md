@@ -110,6 +110,14 @@ pnpm package:dmg    # electron-vite build + electron-builder --mac dmg
 4. `gh release create vX.Y.Z release/agent-observer-*.dmg release/*.blockmap release/latest-mac.yml --target main`
 5. The `latest-mac.yml` is required for electron-updater auto-update detection
 
+### Post-merge release reminder
+**Every PR that changes runtime code (renderer, scene, main process) must include a version bump and DMG build before closing.** Without this, merged changes won't reach users — the Electron app is distributed via DMG, not auto-deployed. If you forget, the user will be running stale builds.
+
+Checklist after merging runtime changes:
+1. Bump patch version in `package.json` (or minor/major as appropriate)
+2. Run `pnpm package:dmg` to build a fresh DMG
+3. Create a GitHub release with the DMG + blockmap + `latest-mac.yml`
+
 ### Gotchas
 - **Branch protection** is strict — can't push to main directly or admin-merge past failed checks
 - **npm audit endpoint** can go down (500 errors); CI audit step handles this gracefully with `ERR_PNPM_AUDIT_BAD_RESPONSE` detection
