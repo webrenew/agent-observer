@@ -49,7 +49,13 @@
       "rollup": ">=4.59.0",
       "flatted": ">=3.4.2",
       "picomatch": ">=4.0.4",
-      "path-to-regexp": ">=8.4.0"
+      "path-to-regexp": ">=8.4.0",
+      "protobufjs": "7.5.6",
+      "lodash": "4.18.1",
+      "vite": "6.4.2",
+      "@xmldom/xmldom": "0.8.13",
+      "fast-uri": "3.1.2",
+      "tmp": "0.2.6"
     }
   },
   "dependencies": {
@@ -95,7 +101,8 @@
     "husky": "^9.1.7",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "6.4.2"
   },
   "build": {
     "appId": "com.webrenew.agent-observer",
