@@ -113,7 +113,15 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: pnpm exec electron-vite build && pnpm exec electron-builder --mac dmg --publish never
+        run: |
+          set -euo pipefail
+          pnpm exec electron-vite build
+          if [ -n "${CSC_LINK:-}" ]; then
+            pnpm exec electron-builder --mac dmg --publish never
+          else
+            echo "CSC_LINK is not configured; building an unsigned macOS DMG."
+            CSC_IDENTITY_AUTO_DISCOVERY=false pnpm exec electron-builder --mac dmg --publish never -c.mac.identity=-
+          fi
 
       - name: Verify installer artifact
         run: |
