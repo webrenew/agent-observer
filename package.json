@@ -55,7 +55,8 @@
       "vite": "6.4.2",
       "@xmldom/xmldom": "0.8.13",
       "fast-uri": "3.1.2",
-      "tmp": "0.2.6"
+      "tmp": "0.2.6",
+      "esbuild": ">=0.28.1"
     }
   },
   "dependencies": {
